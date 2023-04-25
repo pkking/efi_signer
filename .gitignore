@@ -1,0 +1,10 @@
+/target
+/Cargo.lock
+*.pem
+*.p7b
+*.csr
+*.efi
+*.signed
+*.dualsigned
+/EFI
+/.vscode

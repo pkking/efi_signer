@@ -1,0 +1,30 @@
+[package]
+name = "efi_signer"
+version = "0.1.0"
+edition = "2021"
+authors = ["Li Chaoran <pkwarcraft@gmail.com>"]
+description = "A crates for signing and parsing EFI image"
+
+[dependencies]
+byteorder = "1.4.3"
+der = "0.7.2"
+digest = "0.10.6"
+goblin = "0.6.1"
+log = "0.4.17"
+md-5 = "0.10.5"
+picky = { version = "7.0.0-rc.5", features = ["pkcs7", "wincert", "ec", "time_conversion", "ctl", "ctl_http_fetch"] }
+picky-asn1-x509 = "0.9.0"
+pkcs7 = "0.4.0"
+serde = "1.0.159"
+sha1 = "0.10.5"
+sha2 = "0.10.6"
+snafu = { version = "0.7.4", features = ["backtraces", "backtraces-impl-std", "unstable-provider-api"] }
+x509-cert = "0.2.1"
+
+
+[dev-dependencies]
+clap = { version = "4.2.4", features = ["derive"] }
+env_logger = "0.10.0"
+
+[[examples]]
+name = "main"
