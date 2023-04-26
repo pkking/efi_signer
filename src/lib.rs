@@ -16,6 +16,12 @@
 #![feature(cursor_remaining, buf_read_has_data_left)]
 #![feature(error_generic_member_access)]
 #![feature(provide_any)]
+use crate::error::{
+    AlgorithmSnafu, AuthenticodeSnafu, ComputeDigestSnafu, InvalidMagicInOptHdrSnafu,
+    MissingOptHdrSnafu, NoDigestAlgoSnafu, NotSupportedAlgoSnafu, OpenFileSnafu, PESnafu,
+    ParseCertificateSnafu, ParseImageSnafu, ParsePrivateKeySnafu, PemFileSnafu, ReadBtyeSnafu,
+    ReadLeftDataSnafu, Result, WinCertSnafu, WriteBtyeSnafu,
+};
 use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
 use digest::DynDigest;
 use goblin::pe::data_directories::SIZEOF_DATA_DIRECTORY;
@@ -26,6 +32,7 @@ use goblin::pe::optional_header::{
 };
 use goblin::pe::section_table::SectionTable;
 use goblin::pe::{data_directories::DataDirectory, PE};
+use log::{debug, error, info, warn};
 use md5;
 use picky::key::PrivateKey;
 use picky::pem::Pem;
@@ -36,12 +43,11 @@ use picky::x509::wincert::{CertificateType, WinCertificate};
 use sha1;
 use sha2;
 use snafu::{OptionExt, ResultExt};
+use std::fmt::Display;
 use std::fs::File;
 use std::io::{BufRead, BufReader, Cursor};
 use std::mem;
 use std::path::PathBuf;
-use log::{info, warn, debug, error};
-use crate::error::{NoDigestAlgoSnafu, ComputeDigestSnafu, PESnafu, WinCertSnafu, ReadLeftDataSnafu, AlgorithmSnafu, AuthenticodeSnafu, ParsePrivateKeySnafu, ParseCertificateSnafu, ParseImageSnafu, ReadBtyeSnafu, WriteBtyeSnafu, InvalidMagicInOptHdrSnafu, MissingOptHdrSnafu, OpenFileSnafu, PemFileSnafu, Result};
 
 pub mod error;
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -51,6 +57,36 @@ pub struct Signature(pub WinCertificate);
 pub struct Section {
     pub offset: usize,
     pub data: Vec<u8>,
+}
+
+pub enum DigestAlgorithm {
+    Sha1,
+    Sha256,
+    MD5,
+}
+
+impl TryFrom<ShaVariant> for DigestAlgorithm {
+    type Error = error::Error;
+
+    fn try_from(value: ShaVariant) -> Result<DigestAlgorithm> {
+
+        match value {
+            ShaVariant::MD5 => Ok(DigestAlgorithm::MD5),
+            ShaVariant::SHA1 => Ok(DigestAlgorithm::Sha1),
+            ShaVariant::SHA2_256 => Ok(DigestAlgorithm::Sha256),
+            _ => NoDigestAlgoSnafu.fail()?,
+        }
+    }
+}
+
+impl Display for DigestAlgorithm {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            DigestAlgorithm::MD5 => write!(f, "MD5"),
+            DigestAlgorithm::Sha1 => write!(f, "SHA1"),
+            DigestAlgorithm::Sha256 => write!(f, "SHA256"),
+        }
+    }
 }
 
 #[derive(Debug)]
@@ -79,8 +115,13 @@ pub struct WinCertHeader {
 impl<'a> EfiImage<'a> {
     pub fn get_pem_from_file(certfile_path: &PathBuf) -> Result<Pem<'a>> {
         let certfile = Pem::read_from(&mut BufReader::new(
-            File::open(certfile_path.as_path()).context(OpenFileSnafu{path: certfile_path.as_path().display().to_string()})?
-        )).context(PemFileSnafu {path: certfile_path.as_path().display().to_string()})?;
+            File::open(certfile_path.as_path()).context(OpenFileSnafu {
+                path: certfile_path.as_path().display().to_string(),
+            })?,
+        ))
+        .context(PemFileSnafu {
+            path: certfile_path.as_path().display().to_string(),
+        })?;
 
         Ok(certfile)
     }
@@ -89,15 +130,14 @@ impl<'a> EfiImage<'a> {
         Ok(pe
             .header
             .optional_header
-            .context(MissingOptHdrSnafu{})?
+            .context(MissingOptHdrSnafu {})?
             .data_directories
             .get_certificate_table()
             .clone())
     }
 
     fn get_cert_table_section(pe: &PE, pe_raw: &[u8]) -> Result<Section> {
-        let dd = EfiImage::get_cert_table_addr(pe)?
-            .context(MissingOptHdrSnafu{})?;
+        let dd = EfiImage::get_cert_table_addr(pe)?.context(MissingOptHdrSnafu {})?;
 
         Ok(Section {
             offset: dd.virtual_address as usize,
@@ -107,7 +147,7 @@ impl<'a> EfiImage<'a> {
     }
 
     fn get_cert_table_offset(pe: &PE) -> Result<usize> {
-        let hdr = pe.header.optional_header.context(MissingOptHdrSnafu{})?;
+        let hdr = pe.header.optional_header.context(MissingOptHdrSnafu {})?;
         // get size of |< -- >|
         let offset = match hdr.standard_fields.magic {
             MAGIC_32 => {
@@ -122,7 +162,10 @@ impl<'a> EfiImage<'a> {
                     - SIZEOF_CHECKSUM
                     + CERT_TABLE_OFFSET
             }
-            _ => InvalidMagicInOptHdrSnafu{magic: hdr.standard_fields.magic}.fail()?,
+            _ => InvalidMagicInOptHdrSnafu {
+                magic: hdr.standard_fields.magic,
+            }
+            .fail()?,
         };
         Ok(offset)
     }
@@ -163,7 +206,11 @@ impl<'a> EfiImage<'a> {
             let mut rdr = Cursor::new(data);
             let mut sum: u32;
             loop {
-                sum = rdr.read_u16::<LittleEndian>().context(ReadBtyeSnafu{offset: rdr.position() as usize, size: mem::size_of::<u16>()})? as u32 + checksum;
+                sum = rdr.read_u16::<LittleEndian>().context(ReadBtyeSnafu {
+                    offset: rdr.position() as usize,
+                    size: mem::size_of::<u16>(),
+                })? as u32
+                    + checksum;
                 checksum = (sum & 0xffff) + (sum >> 16);
                 steps -= 1;
                 if steps == 0 {
@@ -185,14 +232,17 @@ impl<'a> EfiImage<'a> {
     }
 
     fn get_overlay_section(pe: &PE, pe_raw: &[u8]) -> Result<Option<Vec<Section>>> {
-        let hdr = pe.header.optional_header.context(MissingOptHdrSnafu{})?;
+        let hdr = pe.header.optional_header.context(MissingOptHdrSnafu {})?;
         let mut res: Vec<Section> = Vec::new();
         let file_size = pe_raw.len();
         let end_of_sections =
             EfiImage::get_section_size(&pe) + hdr.windows_fields.size_of_headers as usize;
 
         if file_size < end_of_sections {
-            ParseImageSnafu{reason: "file size lesser than header_size + section_size, corrupt headers."}.fail()?
+            ParseImageSnafu {
+                reason: "file size lesser than header_size + section_size, corrupt headers.",
+            }
+            .fail()?
         }
         // no overlay
         if file_size == end_of_sections {
@@ -235,10 +285,12 @@ impl<'a> EfiImage<'a> {
         let key_pem = EfiImage::get_pem_from_file(&private_key)?;
         let cert_pem = EfiImage::get_pem_from_file(&certfile)?;
 
-        let pkey = PrivateKey::from_pem(&key_pem)
-            .context(ParsePrivateKeySnafu{path: private_key.clone().as_path().display().to_string()})?;
-        let pkcs7 = Pkcs7::from_pem(&cert_pem)
-            .context(ParseCertificateSnafu{path: certfile.clone().as_path().display().to_string()})?;
+        let pkey = PrivateKey::from_pem(&key_pem).context(ParsePrivateKeySnafu {
+            path: private_key.clone().as_path().display().to_string(),
+        })?;
+        let pkcs7 = Pkcs7::from_pem(&cert_pem).context(ParseCertificateSnafu {
+            path: certfile.clone().as_path().display().to_string(),
+        })?;
 
         let authenticode_signature = AuthenticodeSignature::new(
             &pkcs7,
@@ -247,11 +299,15 @@ impl<'a> EfiImage<'a> {
             &pkey,
             program_name,
         )
-        .context(AuthenticodeSnafu{})?;
+        .context(AuthenticodeSnafu {})?;
 
-        let raw_authenticode_signature =
-            authenticode_signature.to_der().context(AuthenticodeSnafu {})?;
-        debug!("a new signature created, size: {:#04x}", raw_authenticode_signature.len());
+        let raw_authenticode_signature = authenticode_signature
+            .to_der()
+            .context(AuthenticodeSnafu {})?;
+        debug!(
+            "a new signature created, size: {:#04x}",
+            raw_authenticode_signature.len()
+        );
         let wincert = WinCertificate::from_certificate(
             raw_authenticode_signature,
             CertificateType::WinCertTypePkcsSignedData,
@@ -260,24 +316,21 @@ impl<'a> EfiImage<'a> {
         Ok(Signature(wincert))
     }
 
-    pub fn get_digest_algo(&self) -> Result<Option<ShaVariant>> {
+    pub fn get_digest_algo(&self) -> Result<Option<DigestAlgorithm>> {
         match self.signatures.len() {
             0 => Ok(None),
             _ => {
                 let code = AuthenticodeSignature::from_der(&self.signatures[0].0.get_certificate())
-                    .context(AuthenticodeSnafu{})?;
+                    .context(AuthenticodeSnafu {})?;
                 Ok(Some(
-                    ShaVariant::try_from(code.0.digest_algorithms()[0].oid_asn1().clone()) 
-                        .context(AlgorithmSnafu{})?,
+                    DigestAlgorithm::try_from(ShaVariant::try_from(code.0.digest_algorithms()[0].oid_asn1().clone())
+                        .context(AlgorithmSnafu {})?)?,
                 ))
             }
         }
     }
 
-    fn parse_cert_table(
-        pe: &PE,
-        raw: &'a [u8],
-    ) -> Result<(Vec<Signature>, Option<Section>)> {
+    fn parse_cert_table(pe: &PE, raw: &'a [u8]) -> Result<(Vec<Signature>, Option<Section>)> {
         let mut res: Vec<Signature> = Vec::new();
         let mut rdr = Cursor::new(raw);
         let mut cert_table = None;
@@ -289,38 +342,41 @@ impl<'a> EfiImage<'a> {
             cert_table = Some(EfiImage::get_cert_table_section(pe, raw)?);
             // there maybe more than one signature
             // so we scan over all the cert table
-            while rdr
-                .has_data_left()
-                .context(ReadLeftDataSnafu{})?
-            {
+            while rdr.has_data_left().context(ReadLeftDataSnafu {})? {
                 // “length” indicating the length of the structure, include the header itself
                 // so the length of the signed data should be length - 4 - 2 - 2
-                let length = rdr
-                    .read_u32::<LittleEndian>()
-                    .context(ReadBtyeSnafu{offset: rdr.position() as usize, size: mem::size_of::<u32>()})?;
+                let length = rdr.read_u32::<LittleEndian>().context(ReadBtyeSnafu {
+                    offset: rdr.position() as usize,
+                    size: mem::size_of::<u32>(),
+                })?;
 
                 // grab the signed-data directly from buffer
                 // and move the position forward
                 let mut sd_end = begin + length as usize;
 
                 let cert_data = &raw[begin..sd_end];
-                let wincert = WinCertificate::decode(cert_data)
-                    .context(WinCertSnafu{})?;
+                let wincert = WinCertificate::decode(cert_data).context(WinCertSnafu {})?;
                 let code = AuthenticodeSignature::from_der(wincert.get_certificate())
-                    .context(AuthenticodeSnafu{})?;
+                    .context(AuthenticodeSnafu {})?;
                 //authenticode only contains one digest algorithm
                 if code.0.digest_algorithms().len() != 1 {
-                    ParseImageSnafu{ reason: format!(
-                        "invalid digest algorithms numbers: {}",
-                        code.0.digest_algorithms().len()
-                    )}.fail()?
+                    ParseImageSnafu {
+                        reason: format!(
+                            "invalid digest algorithms numbers: {}",
+                            code.0.digest_algorithms().len()
+                        ),
+                    }
+                    .fail()?
                 }
 
                 if code.0.signer_infos().len() != 1 {
-                    ParseImageSnafu{ reason: format!(
-                        "invalid signer_info numbers: {}",
-                        code.0.signer_infos().len()
-                    )}.fail()?
+                    ParseImageSnafu {
+                        reason: format!(
+                            "invalid signer_info numbers: {}",
+                            code.0.signer_infos().len()
+                        ),
+                    }
+                    .fail()?
                 }
 
                 if code.0.digest_algorithms()[0] != code.0.signer_infos()[0].digest_algorithm.0 {
@@ -339,19 +395,22 @@ impl<'a> EfiImage<'a> {
     }
 
     pub fn parse(buf: &'a [u8]) -> Result<Self> {
-        let pe = Box::new(PE::parse(buf).context(PESnafu{})?);
+        let pe = Box::new(PE::parse(buf).context(PESnafu {})?);
         let mut rdr = Cursor::new(buf);
 
         rdr.set_position(pe.header.dos_header.pe_pointer as u64);
-        let signature = rdr
-            .read_u32::<LittleEndian>()
-            .context(ReadBtyeSnafu{offset: rdr.position() as usize, size: mem::size_of::<u32>()})?;
+        let signature = rdr.read_u32::<LittleEndian>().context(ReadBtyeSnafu {
+            offset: rdr.position() as usize,
+            size: mem::size_of::<u32>(),
+        })?;
         if signature != PE_MAGIC {
-            ParseImageSnafu{ reason: format!(
-                "pe magic check failed expect:{} actual:{}",
-                PE_MAGIC,
-                signature
-            )}.fail()?
+            ParseImageSnafu {
+                reason: format!(
+                    "pe magic check failed expect:{} actual:{}",
+                    PE_MAGIC, signature
+                ),
+            }
+            .fail()?
         }
         let (res, cert_table) = EfiImage::parse_cert_table(&pe, buf)?;
 
@@ -364,7 +423,7 @@ impl<'a> EfiImage<'a> {
         let mut raw = buf.to_vec();
         // add some padding to end of the file so that the file size is byte aligned
         if raw.len() % 8 != 0 {
-            let padding = (raw.len() / 8 + 1 ) * 8 - raw.len();
+            let padding = (raw.len() / 8 + 1) * 8 - raw.len();
             debug!("zero-pad {} bytes", padding);
             raw.append(&mut vec![0u8; padding]);
         }
@@ -382,22 +441,29 @@ impl<'a> EfiImage<'a> {
     pub fn get_checksum_from_header(&self) -> Result<u32> {
         let mut rdr = Cursor::new(&self.raw);
         rdr.set_position(self.checksum.offset as u64);
-        Ok(rdr
-            .read_u32::<LittleEndian>()
-            .context(ReadBtyeSnafu{offset: rdr.position() as usize, size: mem::size_of::<u32>()})?)
+        Ok(rdr.read_u32::<LittleEndian>().context(ReadBtyeSnafu {
+            offset: rdr.position() as usize,
+            size: mem::size_of::<u32>(),
+        })?)
     }
     // get digest from EFI image
     pub fn get_digest(&self) -> Result<Option<Vec<u8>>> {
         let mut hashes = Vec::new();
         for sig in self.signatures.iter() {
             let code = AuthenticodeSignature::from_der(sig.0.get_certificate())
-                    .context(AuthenticodeSnafu{})?;
+                .context(AuthenticodeSnafu {})?;
             let Some(hash) = code.file_hash() else {
                 continue;
             };
 
             if hashes.len() != 0 && hash != hashes[0] {
-                ParseImageSnafu{ reason: format!("signature with different hash {:x?} and {:x?}", hash, hash[0])}.fail()?
+                ParseImageSnafu {
+                    reason: format!(
+                        "signature with different hash {:x?} and {:x?}",
+                        hash, hash[0]
+                    ),
+                }
+                .fail()?
             }
 
             hashes.push(hash);
@@ -412,14 +478,21 @@ impl<'a> EfiImage<'a> {
     // checksum, certificate table data directory and attribute certificate table are excluded from the whole header
     // all sections are included by sorting ASC order by PointerToRawData
     // the data remain behind certificate table also included
-    pub fn compute_digest(&self, alg: ShaVariant) -> Result<Vec<u8>> {
-        let hdr = self.pe.header.optional_header.context(MissingOptHdrSnafu{})?;
+    pub fn compute_digest(&self, alg: DigestAlgorithm) -> Result<Vec<u8>> {
+        let hdr = self
+            .pe
+            .header
+            .optional_header
+            .context(MissingOptHdrSnafu {})?;
 
         let mut hasher: Box<dyn DynDigest> = match alg {
-            ShaVariant::MD5 => Box::new(md5::Md5::default()),
-            ShaVariant::SHA1 => Box::new(sha1::Sha1::default()),
-            ShaVariant::SHA2_256 => Box::new(sha2::Sha256::default()),
-            _ => ComputeDigestSnafu{reason: format!("not supported digest method: {:?}", alg)}.fail()?
+            DigestAlgorithm::MD5 => Box::new(md5::Md5::default()),
+            DigestAlgorithm::Sha1 => Box::new(sha1::Sha1::default()),
+            DigestAlgorithm::Sha256 => Box::new(sha2::Sha256::default()),
+            _ => ComputeDigestSnafu {
+                reason: format!("not supported digest method: {}", alg),
+            }
+            .fail()?,
         };
 
         // 3. hash the image header from its base to immediately before the start
@@ -468,7 +541,11 @@ impl<'a> EfiImage<'a> {
         temp_tables.sort_by(|&a, &b| a.pointer_to_raw_data.cmp(&b.pointer_to_raw_data));
 
         for sec in temp_tables {
-            debug!("hashed from [{:#04x} - {:#04x}]", sec.pointer_to_raw_data, sec.pointer_to_raw_data + sec.size_of_raw_data);
+            debug!(
+                "hashed from [{:#04x} - {:#04x}]",
+                sec.pointer_to_raw_data,
+                sec.pointer_to_raw_data + sec.size_of_raw_data
+            );
             hasher.update(
                 &self.raw[sec.pointer_to_raw_data as usize
                     ..(sec.pointer_to_raw_data + sec.size_of_raw_data) as usize],
@@ -483,12 +560,22 @@ impl<'a> EfiImage<'a> {
         let file_size = self.raw.len();
         if file_size > sum_of_bytes_hashed as usize {
             if let Some(dd) = hdr.data_directories.data_directories[4] {
-                debug!("hashed from [{:#04x} - {:#04x}]", sum_of_bytes_hashed, dd.virtual_address );
+                debug!(
+                    "hashed from [{:#04x} - {:#04x}]",
+                    sum_of_bytes_hashed, dd.virtual_address
+                );
                 hasher.update(&self.raw[sum_of_bytes_hashed as usize..dd.virtual_address as usize]);
-                debug!("hashed from [{:#04x} - {:#04x}]", dd.virtual_address + dd.size, file_size);
+                debug!(
+                    "hashed from [{:#04x} - {:#04x}]",
+                    dd.virtual_address + dd.size,
+                    file_size
+                );
                 hasher.update(&self.raw[(dd.virtual_address + dd.size) as usize..]);
             } else {
-                debug!("hashed from [{:#04x} - {:#04x}]", sum_of_bytes_hashed, file_size);
+                debug!(
+                    "hashed from [{:#04x} - {:#04x}]",
+                    sum_of_bytes_hashed, file_size
+                );
                 hasher.update(&self.raw[sum_of_bytes_hashed as usize..]);
             }
         }
@@ -524,7 +611,11 @@ impl<'a> EfiImage<'a> {
 
     // embedded signatures into the image
     pub fn set_authenticode(&self, signatures: Vec<Signature>) -> Result<Vec<u8>> {
-        let hdr = self.pe.header.optional_header.context(MissingOptHdrSnafu{})?;
+        let hdr = self
+            .pe
+            .header
+            .optional_header
+            .context(MissingOptHdrSnafu {})?;
         let mut res: Vec<u8>;
         let mut size: u32 = 0;
         let rva: u32;
@@ -533,7 +624,10 @@ impl<'a> EfiImage<'a> {
             let mut end_of_signature: u32 = dd.virtual_address + dd.size;
             rva = dd.virtual_address;
             size = dd.size;
-            debug!("already has some signatures, old rva and size: {:#04x}/{:#04x}", rva, size);
+            debug!(
+                "already has some signatures, old rva and size: {:#04x}/{:#04x}",
+                rva, size
+            );
             res = self.raw[..end_of_signature as usize].to_vec();
             //each wincert should aligned to a byte
             // if not, try to append some padding
@@ -548,7 +642,7 @@ impl<'a> EfiImage<'a> {
             res.append(&mut vec![0u8; padding as usize]);
             // append all other signatures
             for sig in signatures.iter() {
-                let mut code_raw = sig.0.clone().encode().context(WinCertSnafu{})?;
+                let mut code_raw = sig.0.clone().encode().context(WinCertSnafu {})?;
                 debug!("append new signature, size: {:#04x}", code_raw.len());
 
                 size += code_raw.len() as u32;
@@ -566,7 +660,11 @@ impl<'a> EfiImage<'a> {
             // if we have the second overlay, append it
             if let Some(ref s) = self.overlay {
                 if s.len() == 2 {
-                    debug!("append second overlay buffer from [{:#04x} - {:#04x}]", s[1].offset, s[1].offset + s[1].data.len());
+                    debug!(
+                        "append second overlay buffer from [{:#04x} - {:#04x}]",
+                        s[1].offset,
+                        s[1].offset + s[1].data.len()
+                    );
                     res.append(&mut s[1].data.clone());
                     size += s[1].data.len() as u32;
                 }
@@ -575,12 +673,11 @@ impl<'a> EfiImage<'a> {
             debug!("no signatures before, add a new signature");
             // no signatures existed, just append to the end of the file
             res = self.raw.clone();
-            rva = res
-                .len() as u32;
+            rva = res.len() as u32;
 
             for sig in signatures.iter() {
-                let mut padding :usize = 0;
-                let mut tmp = sig.0.clone().encode().context(WinCertSnafu{})?;
+                let mut padding: usize = 0;
+                let mut tmp = sig.0.clone().encode().context(WinCertSnafu {})?;
                 debug!("append new signature, size: {:#04x}", tmp.len());
 
                 size += tmp.len() as u32;
@@ -597,15 +694,24 @@ impl<'a> EfiImage<'a> {
 
         let dd_offset = EfiImage::get_dd_offset(&self.pe)?;
         // insert the data directory into origin pe
-        let mut writer :Vec<u8> = Vec::new();
+        let mut writer: Vec<u8> = Vec::new();
 
         writer
             .write_u32::<LittleEndian>(rva)
-            .context(WriteBtyeSnafu{offset: writer.len() as usize, size: mem::size_of::<u32>()})?;
+            .context(WriteBtyeSnafu {
+                offset: writer.len() as usize,
+                size: mem::size_of::<u32>(),
+            })?;
         writer
             .write_u32::<LittleEndian>(size)
-            .context(WriteBtyeSnafu{offset: writer.len() as usize, size: mem::size_of::<u32>()})?;
-        res.splice(dd_offset..(dd_offset + SIZEOF_DATA_DIRECTORY), writer.iter().cloned());
+            .context(WriteBtyeSnafu {
+                offset: writer.len() as usize,
+                size: mem::size_of::<u32>(),
+            })?;
+        res.splice(
+            dd_offset..(dd_offset + SIZEOF_DATA_DIRECTORY),
+            writer.iter().cloned(),
+        );
         debug!("new image total size: {:#04x}", res.len());
         Ok(res)
     }
@@ -618,18 +724,21 @@ impl<'a> EfiImage<'a> {
         // timestamp processing
         //calculating the PE image hash
         let now = UtcDate::now();
-        let file_hash = self.compute_digest(self.get_digest_algo()?.context(NoDigestAlgoSnafu{})?)?;
+        let file_hash =
+            self.compute_digest(self.get_digest_algo()?.context(NoDigestAlgoSnafu {})?)?;
         for sig in self.signatures.iter() {
             let code = AuthenticodeSignature::from_der(&sig.0.get_certificate())
-                    .context(AuthenticodeSnafu{})?;
-            let verfier: picky::x509::pkcs7::authenticode::AuthenticodeValidator = code.authenticode_verifier();
-            verfier.require_basic_authenticode_validation(file_hash.clone())
-            .require_not_after_check()
-            .require_not_before_check()
-            .exact_date(&now)
-            .ignore_chain_check()
-            .ignore_ca_against_ctl_check(); // we just ignore ctl check as picky not support set a user provided cert as trust anchor
-            verfier.verify().context(AuthenticodeSnafu{})?;
+                .context(AuthenticodeSnafu {})?;
+            let verfier: picky::x509::pkcs7::authenticode::AuthenticodeValidator =
+                code.authenticode_verifier();
+            verfier
+                .require_basic_authenticode_validation(file_hash.clone())
+                .require_not_after_check()
+                .require_not_before_check()
+                .exact_date(&now)
+                .ignore_chain_check()
+                .ignore_ca_against_ctl_check(); // we just ignore ctl check as picky not support set a user provided cert as trust anchor
+            verfier.verify().context(AuthenticodeSnafu {})?;
         }
 
         Ok(())
@@ -640,10 +749,13 @@ impl<'a> EfiImage<'a> {
         certfile: PathBuf,
         private_key: PathBuf,
         program_name: Option<String>,
-        mut algo: ShaVariant,
+        mut algo: DigestAlgorithm,
     ) -> Result<Vec<u8>> {
         if let Some(a) = self.get_digest_algo()? {
-            warn!("a digest algorithm:{:?} already existed, ignore input args {:?}", a, algo);
+            warn!(
+                "a digest algorithm:{} already existed, ignore input args {}",
+                a, algo
+            );
             algo = a;
         }
         let file_hash = self.compute_digest(algo)?;
@@ -655,28 +767,48 @@ impl<'a> EfiImage<'a> {
 
     pub fn print_info(&self) -> Result<()> {
         debug!("EFI image info:");
-        debug!("calculated sha256 {:x?}", self.compute_digest(picky::x509::pkcs7::authenticode::ShaVariant::SHA2_256)?);
+        debug!(
+            "calculated sha256 {:x?}",
+            self.compute_digest(DigestAlgorithm::Sha256)?
+        );
         debug!("embedded sha256 digest {:x?}", self.get_digest());
         debug!("checksum {:#06x}", self.compute_check_sum()?);
         if let Some(ref o) = self.overlay {
             let mut tot_size = 0;
             for s in o.iter() {
-                debug!("overlay from [{:#06x} - {:#06x}] size {:#06x}", s.offset, s.offset + s.data.len(), s.data.len());
+                debug!(
+                    "overlay from [{:#06x} - {:#06x}] size {:#06x}",
+                    s.offset,
+                    s.offset + s.data.len(),
+                    s.data.len()
+                );
                 tot_size += s.data.len();
             }
             debug!("section total size: {:#04x}", tot_size);
         }
         if let Some(ref c) = self.cert_table {
-            debug!("the attribute certificate table: [{:#06x} - {:#06x}]", c.offset, c.offset + c.data.len());
+            debug!(
+                "the attribute certificate table: [{:#06x} - {:#06x}]",
+                c.offset,
+                c.offset + c.data.len()
+            );
         }
 
-        let hdr = self.pe.header.optional_header.context(MissingOptHdrSnafu{})?;
+        let hdr = self
+            .pe
+            .header
+            .optional_header
+            .context(MissingOptHdrSnafu {})?;
         if let Some(dd) = hdr.data_directories.data_directories[4] {
-            debug!("pe the certificate data info: [{:#06x} - {:#06x}]", dd.virtual_address, dd.virtual_address+dd.size);
+            debug!(
+                "pe the certificate data info: [{:#06x} - {:#06x}]",
+                dd.virtual_address,
+                dd.virtual_address + dd.size
+            );
         }
 
         if let Some(algo) = self.get_digest_algo()? {
-            debug!("digest algo: {:?}", algo);
+            debug!("digest algo: {}", algo);
         }
         Ok(())
     }

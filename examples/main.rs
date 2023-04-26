@@ -14,6 +14,7 @@
  *
  */
 use clap::{Parser, Subcommand, Args};
+use efi_signer::DigestAlgorithm;
 use std::fs::read;
 use std::io::Write;
 use std::path::PathBuf;
@@ -79,7 +80,7 @@ fn sign(path :&str, output :&str, key :&str, cert :&str) {
 
     pe.print_info().unwrap();
 
-    let sig = pe.sign_signature(PathBuf::from_str(cert).unwrap(), PathBuf::from_str(key).unwrap(), None, picky_asn1_x509::ShaVariant::SHA2_256).unwrap();
+    let sig = pe.sign_signature(PathBuf::from_str(cert).unwrap(), PathBuf::from_str(key).unwrap(), None, DigestAlgorithm::Sha256).unwrap();
 
     let new_pe = efi_signer::EfiImage::parse(&sig).unwrap();
 

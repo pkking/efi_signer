@@ -73,4 +73,6 @@ pub(crate) enum InnerError {
     ComputeDigest {reason: String},
     #[snafu(display("No digest algorithm existed"))]
     NoDigestAlgo {},
+    #[snafu(display("Not supported algorithm"))]
+    NotSupportedAlgo {},
 }
