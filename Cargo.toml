@@ -4,6 +4,7 @@ version = "0.1.0"
 edition = "2021"
 authors = ["Li Chaoran <pkwarcraft@gmail.com>"]
 description = "A crates for signing and parsing EFI image"
+license = "MulanPSL-2.0"
 
 [dependencies]
 byteorder = "1.4.3"
