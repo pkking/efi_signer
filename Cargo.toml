@@ -12,6 +12,8 @@ digest = "0.10.6"
 goblin = "0.6.1"
 log = "0.4.17"
 md-5 = "0.10.5"
+openssl = "0.10.52"
+openssl-sys = "0.9.87"
 picky = { version = "7.0.0-rc.5", features = ["pkcs7", "wincert", "ec", "time_conversion", "ctl", "ctl_http_fetch"] }
 picky-asn1-x509 = "0.9.0"
 pkcs7 = "0.4.0"

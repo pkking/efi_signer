@@ -13,13 +13,15 @@
  *  * // See the Mulan PSL v2 for more details.
  *
  */
-use clap::{Parser, Subcommand, Args};
+use clap::{Args, Parser, Subcommand};
 use efi_signer::DigestAlgorithm;
+use log::debug;
+use std::env;
 use std::fs::read;
 use std::io::Write;
 use std::path::PathBuf;
+use std::str;
 use std::str::FromStr;
-use std::env;
 
 #[derive(Parser)]
 #[command(name = "efi_signer examples")]
@@ -31,14 +33,14 @@ struct Cli {
     command: Commands,
     #[arg(short, long)]
     #[arg(help = "print more info")]
-    verbose: bool
+    verbose: bool,
 }
 
 #[derive(Args)]
 struct CliArgs {
     #[arg(short, long)]
     #[arg(help = "print more info")]
-    verbose: bool
+    verbose: bool,
 }
 
 #[derive(Subcommand)]
@@ -47,11 +49,23 @@ enum Commands {
     Sign(Sign),
     #[command(about = "Parse a EFI image", long_about = None)]
     Parse(Parse),
+    #[command(about = "Convert pem to p7b", long_about = None)]
+    P7b(P7b),
 }
 
+#[derive(Args)]
+struct P7b {
+    #[arg(help = "pem cert to convert")]
+    path: String,
+    #[arg(help = "p7b output file path")]
+    output: String,
+}
 
 #[derive(Args)]
 struct Parse {
+    #[arg(long, short, required(true))]
+    #[arg(help = "certificate in pem format")]
+    cert: String,
     #[arg(long)]
     #[arg(help = "whether to verify the image")]
     verify: bool,
@@ -59,11 +73,10 @@ struct Parse {
     path: String,
 }
 
-
 #[derive(Args)]
 struct Sign {
     #[arg(long, short, required(true))]
-    #[arg(help = "private key in pem format")]
+    #[arg(help = "private key in p7b format")]
     key: String,
     #[arg(long, short, required(true))]
     #[arg(help = "certificate in pem format")]
@@ -74,13 +87,33 @@ struct Sign {
     output: String,
 }
 
-fn sign(path :&str, output :&str, key :&str, cert :&str) {
+fn p7b(path: &str, output: &str) {
+    let pem_file_content = read(path).unwrap();
+    let pem_str = str::from_utf8(&pem_file_content).unwrap();
+    debug!("read cert: {}", pem_str);
+
+    let p7 = efi_signer::EfiImage::pem_to_p7(&pem_file_content).unwrap();
+    //debug!("pkcs7 info: {:?}", p7_pem);
+    //debug!("openssl p7topem {:?}", p7.to_pem().unwrap());
+
+    let mut file = std::fs::File::create(output).unwrap();
+    file.write_all(&p7).unwrap();
+}
+
+fn sign(path: &str, output: &str, key: &str, cert: &str) {
     let buf = read(path).unwrap();
     let pe = efi_signer::EfiImage::parse(&buf).unwrap();
 
     pe.print_info().unwrap();
 
-    let sig = pe.sign_signature(PathBuf::from_str(cert).unwrap(), PathBuf::from_str(key).unwrap(), None, DigestAlgorithm::Sha256).unwrap();
+    let sig = pe
+        .sign_signature(
+            PathBuf::from_str(cert).unwrap(),
+            PathBuf::from_str(key).unwrap(),
+            None,
+            DigestAlgorithm::Sha256,
+        )
+        .unwrap();
 
     let new_pe = efi_signer::EfiImage::parse(&sig).unwrap();
 
@@ -91,7 +124,7 @@ fn sign(path :&str, output :&str, key :&str, cert :&str) {
     file.write_all(&sig).unwrap();
 }
 
-fn parse(path :&str, verify :bool) {
+fn parse(path: &str, verify: bool) {
     let buf = read(path).unwrap();
     let pe = efi_signer::EfiImage::parse(&buf).unwrap();
 
@@ -101,6 +134,7 @@ fn parse(path :&str, verify :bool) {
         pe.verify().unwrap();
     }
 }
+
 fn main() {
     //prepare config and logger
     let app = Cli::parse();
@@ -112,6 +146,7 @@ fn main() {
 
     match app.command {
         Commands::Parse(p) => parse(&p.path, p.verify),
-        Commands::Sign(s) => sign(&s.path, &s.output, &s.key ,&s.cert),
+        Commands::Sign(s) => sign(&s.path, &s.output, &s.key, &s.cert),
+        Commands::P7b(p) => p7b(&p.path, &p.output),
     }
 }

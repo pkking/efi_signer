@@ -20,6 +20,7 @@ use picky::x509::pkcs7::Pkcs7Error;
 use picky::x509::pkcs7::authenticode::AuthenticodeError;
 use snafu::prelude::*;
 use std::io::Error as IoError;
+use std::str::Utf8Error;
 use picky::pem::PemError;
 use goblin::error::Error as PeError;
 
@@ -53,10 +54,12 @@ pub(crate) enum InnerError {
     WriteBtye {offset: usize, size: usize, source: IoError},
     #[snafu(display("Parse EFI image failed, reason: {reason}"))]
     ParseImage {reason: String},
-    #[snafu(display("Parse private key failed, path: {path}"))]
-    ParsePrivateKey {path: String, source: KeyError},
-    #[snafu(display("Parse certificate failed, path: {path}"))]
-    ParseCertificate {path: String, source: Pkcs7Error},
+    #[snafu(display("PEM decode failed"))]
+    PemDecode {source: Utf8Error},
+    #[snafu(display("Parse private key failed"))]
+    ParsePrivateKey {source: KeyError},
+    #[snafu(display("Parse certificate failed"))]
+    ParseCertificate {source: Pkcs7Error},
     #[snafu(display("Failed to sign the image, reason: {reason}"))]
     Sign {reason: String},
     #[snafu(display("Failed create a authenticode"))]
@@ -65,7 +68,7 @@ pub(crate) enum InnerError {
     Algorithm {source: UnsupportedAlgorithmError},
     #[snafu(display("Failed to read left data in buffer"))]
     ReadLeftData {source: IoError},
-    #[snafu(display("Failed to decode to a wincert"))]
+    #[snafu(display("Failed to decode/encode to a wincert"))]
     WinCert {source: WinCertificateError},
     #[snafu(display("Failed to decode to a PE/COFF struct"))]
     PE {source: PeError},
@@ -75,4 +78,6 @@ pub(crate) enum InnerError {
     NoDigestAlgo {},
     #[snafu(display("Not supported algorithm"))]
     NotSupportedAlgo {},
+    #[snafu(display("Failed to convert a pem cert to PKCS7 format: {reason}"))]
+    ConvertPEM2PKCS7 {reason: String},
 }

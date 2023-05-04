@@ -17,10 +17,10 @@
 #![feature(error_generic_member_access)]
 #![feature(provide_any)]
 use crate::error::{
-    AlgorithmSnafu, AuthenticodeSnafu, ComputeDigestSnafu, InvalidMagicInOptHdrSnafu,
-    MissingOptHdrSnafu, NoDigestAlgoSnafu, NotSupportedAlgoSnafu, OpenFileSnafu, PESnafu,
+    AlgorithmSnafu, AuthenticodeSnafu, InvalidMagicInOptHdrSnafu,
+    MissingOptHdrSnafu, NoDigestAlgoSnafu, ConvertPEM2PKCS7Snafu, OpenFileSnafu, PESnafu,
     ParseCertificateSnafu, ParseImageSnafu, ParsePrivateKeySnafu, PemFileSnafu, ReadBtyeSnafu,
-    ReadLeftDataSnafu, Result, WinCertSnafu, WriteBtyeSnafu,
+    ReadLeftDataSnafu, Result, WinCertSnafu, WriteBtyeSnafu, PemDecodeSnafu
 };
 use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
 use digest::DynDigest;
@@ -32,22 +32,26 @@ use goblin::pe::optional_header::{
 };
 use goblin::pe::section_table::SectionTable;
 use goblin::pe::{data_directories::DataDirectory, PE};
-use log::{debug, error, info, warn};
+use log::{debug, warn};
 use md5;
+use openssl_sys::{PKCS7_new, PKCS7_set_type, PKCS7_content_new, NID_pkcs7_signed, NID_pkcs7_data, BIO_new, BIO_s_mem, BIO_new_mem_buf, c_void, PKCS7_add_certificate, PEM_read_bio_X509, PEM_write_bio_PKCS7, BIO_get_mem_data};
 use picky::key::PrivateKey;
 use picky::pem::Pem;
 use picky::x509::date::UtcDate;
 use picky::x509::pkcs7::authenticode::{AuthenticodeSignature, ShaVariant};
-use picky::x509::pkcs7::Pkcs7;
+use picky::x509::pkcs7::{Pkcs7};
 use picky::x509::wincert::{CertificateType, WinCertificate};
 use sha1;
 use sha2;
 use snafu::{OptionExt, ResultExt};
+use core::slice;
 use std::fmt::Display;
 use std::fs::File;
 use std::io::{BufRead, BufReader, Cursor};
 use std::mem;
 use std::path::PathBuf;
+use std::ptr::{null_mut};
+use std::str;
 
 pub mod error;
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -105,13 +109,17 @@ const SIZEOF_CHECKSUM: usize = mem::size_of::<u32>();
 const CERT_TABLE_OFFSET: usize = 4 * mem::size_of::<DataDirectory>() as usize; // offset from start of data directories to cert table direcotory
 const SIZEOF_CERT_TABLE: usize = mem::size_of::<DataDirectory>() as usize;
 
-#[repr(C)]
-pub struct WinCertHeader {
-    length: u32,
-    revision: u16,
-    cert_type: u16,
-}
+impl Signature {
+    pub fn encode(&self) -> Result<Vec<u8>> {
+        Ok(self.0.clone().encode().context(WinCertSnafu{})?)
+    }
 
+    pub fn decode(buf :&[u8]) -> Result<Self> {
+        Ok(Signature(
+            WinCertificate::decode(buf).context(WinCertSnafu{})?
+        ))
+    }
+}
 impl<'a> EfiImage<'a> {
     pub fn get_pem_from_file(certfile_path: &PathBuf) -> Result<Pem<'a>> {
         let certfile = Pem::read_from(&mut BufReader::new(
@@ -200,6 +208,47 @@ impl<'a> EfiImage<'a> {
             data: pe_raw[cert_dd_offset..cert_dd_offset + SIZEOF_CERT_TABLE].to_vec(),
         })
     }
+    // return a pkcs7 signeddata container which contain the certificate in buf
+    pub fn pem_to_p7(buf :&[u8]) -> Result<Vec<u8>> {
+        unsafe {
+            let p7 = PKCS7_new();
+            if p7.is_null() {
+                return ConvertPEM2PKCS7Snafu{reason: "failed to init a new PKCS7 struct"}.fail()?;
+            }
+            if PKCS7_set_type(p7, NID_pkcs7_signed) == 0 {
+                return ConvertPEM2PKCS7Snafu{reason: "failed to PKCS7_set_type"}.fail()?;
+            }
+            if PKCS7_content_new(p7, NID_pkcs7_data) == 0 {
+                return ConvertPEM2PKCS7Snafu{reason: "failed to PKCS7_content_new"}.fail()?;
+            }
+            //let b = BIO_new(BIO_s_mem());
+            let b = BIO_new_mem_buf(buf.as_ptr() as *const c_void, buf.len() as i32);
+            if b.is_null() {
+                return ConvertPEM2PKCS7Snafu{reason: "failed to create bio buffer"}.fail()?;
+            }
+
+            let x509 = PEM_read_bio_X509(b, null_mut(), None, null_mut());
+            if x509.is_null() {
+                return ConvertPEM2PKCS7Snafu{reason: "failed to read x509 from buffer"}.fail()?;
+            }
+            if PKCS7_add_certificate(p7, x509) == 0 {
+                return ConvertPEM2PKCS7Snafu{reason: "failed to add cert"}.fail()?;
+            }
+
+            let out = BIO_new(BIO_s_mem());
+            if out.is_null() {
+                return ConvertPEM2PKCS7Snafu{reason: "failed to create output buffer"}.fail()?;
+            }
+
+            if PEM_write_bio_PKCS7(out, p7) == 0 {
+                return ConvertPEM2PKCS7Snafu{reason: "failed to write pkcs7 back to buffer"}.fail()?;
+            }
+
+            let mut ptr = null_mut();
+            let len = BIO_get_mem_data(out, &mut ptr);
+            Ok(slice::from_raw_parts(ptr as *const _ as *const _, len as usize).to_vec())
+        }
+    }
 
     fn check_sum(mut checksum: u32, data: &[u8], mut steps: usize) -> Result<u32> {
         if steps > 0 {
@@ -278,19 +327,12 @@ impl<'a> EfiImage<'a> {
 
     pub fn do_sign_signature(
         file_hash: Vec<u8>,
-        certfile: PathBuf,
-        private_key: PathBuf,
+        certfile: Vec<u8>, // pem in utf-8
+        private_key: Vec<u8>, // pem in utf-8
         program_name: Option<String>,
     ) -> Result<Signature> {
-        let key_pem = EfiImage::get_pem_from_file(&private_key)?;
-        let cert_pem = EfiImage::get_pem_from_file(&certfile)?;
-
-        let pkey = PrivateKey::from_pem(&key_pem).context(ParsePrivateKeySnafu {
-            path: private_key.clone().as_path().display().to_string(),
-        })?;
-        let pkcs7 = Pkcs7::from_pem(&cert_pem).context(ParseCertificateSnafu {
-            path: certfile.clone().as_path().display().to_string(),
-        })?;
+        let pkey = PrivateKey::from_pem_str(str::from_utf8(&private_key).context(PemDecodeSnafu {})?).context(ParsePrivateKeySnafu {})?;
+        let pkcs7 = Pkcs7::from_pem_str(str::from_utf8(&certfile).context(PemDecodeSnafu {})?).context(ParseCertificateSnafu {})?;
 
         let authenticode_signature = AuthenticodeSignature::new(
             &pkcs7,
@@ -489,10 +531,6 @@ impl<'a> EfiImage<'a> {
             DigestAlgorithm::MD5 => Box::new(md5::Md5::default()),
             DigestAlgorithm::Sha1 => Box::new(sha1::Sha1::default()),
             DigestAlgorithm::Sha256 => Box::new(sha2::Sha256::default()),
-            _ => ComputeDigestSnafu {
-                reason: format!("not supported digest method: {}", alg),
-            }
-            .fail()?,
         };
 
         // 3. hash the image header from its base to immediately before the start
@@ -758,10 +796,14 @@ impl<'a> EfiImage<'a> {
             );
             algo = a;
         }
+
+        let key_pem = EfiImage::get_pem_from_file(&private_key)?;
+        let cert_pem = EfiImage::get_pem_from_file(&certfile)?;
+
         let file_hash = self.compute_digest(algo)?;
 
         let signature =
-            EfiImage::do_sign_signature(file_hash.to_vec(), certfile, private_key, program_name)?;
+            EfiImage::do_sign_signature(file_hash.to_vec(), cert_pem.to_string().into_bytes(), key_pem.to_string().into_bytes(), program_name)?;
         Ok(self.set_authenticode(vec![signature])?)
     }
 
