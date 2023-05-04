@@ -1,10 +1,13 @@
 [package]
 name = "efi_signer"
-version = "0.1.0"
+version = "0.1.1"
 edition = "2021"
 authors = ["Li Chaoran <pkwarcraft@gmail.com>"]
 description = "A crates for signing and parsing EFI image"
 license = "MulanPSL-2.0"
+repository = "https://gitee.com/mywaaagh_admin/efi_signer/"
+keywords = ["efi", "authenticode", "PE", "secureBoot", "UEFI"]
+readme = "README.md"
 
 [dependencies]
 byteorder = "1.4.3"

@@ -54,6 +54,7 @@ use std::ptr::{null_mut};
 use std::str;
 
 pub mod error;
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Signature(pub WinCertificate);
 
@@ -110,10 +111,11 @@ const CERT_TABLE_OFFSET: usize = 4 * mem::size_of::<DataDirectory>() as usize; /
 const SIZEOF_CERT_TABLE: usize = mem::size_of::<DataDirectory>() as usize;
 
 impl Signature {
+    /// encode the EFI signature into a Vec<u8>
     pub fn encode(&self) -> Result<Vec<u8>> {
         Ok(self.0.clone().encode().context(WinCertSnafu{})?)
     }
-
+    /// decode the a Vec<u8> into the EFI signature
     pub fn decode(buf :&[u8]) -> Result<Self> {
         Ok(Signature(
             WinCertificate::decode(buf).context(WinCertSnafu{})?
@@ -121,7 +123,7 @@ impl Signature {
     }
 }
 impl<'a> EfiImage<'a> {
-    pub fn get_pem_from_file(certfile_path: &PathBuf) -> Result<Pem<'a>> {
+    fn get_pem_from_file(certfile_path: &PathBuf) -> Result<Pem<'a>> {
         let certfile = Pem::read_from(&mut BufReader::new(
             File::open(certfile_path.as_path()).context(OpenFileSnafu {
                 path: certfile_path.as_path().display().to_string(),
@@ -208,7 +210,20 @@ impl<'a> EfiImage<'a> {
             data: pe_raw[cert_dd_offset..cert_dd_offset + SIZEOF_CERT_TABLE].to_vec(),
         })
     }
-    // return a pkcs7 signeddata container which contain the certificate in buf
+    /// convert a PEM formatted ceritificate into pkcs7 signedData format
+    /// 
+    /// # Examples
+    /// ```no_run
+    /// use std::io::Write;
+    ///
+    /// let pem_file_content = std::fs::read("cert.pem").unwrap();
+    /// let pem_str = std::str::from_utf8(&pem_file_content).unwrap();
+    ///
+    /// let p7 = efi_signer::EfiImage::pem_to_p7(&pem_file_content).unwrap();
+    ///
+    /// let mut file = std::fs::File::create("cert.p7b").unwrap();
+    /// file.write_all(&p7).unwrap();
+    /// ```
     pub fn pem_to_p7(buf :&[u8]) -> Result<Vec<u8>> {
         unsafe {
             let p7 = PKCS7_new();
@@ -325,6 +340,9 @@ impl<'a> EfiImage<'a> {
         Ok(Some(res))
     }
 
+    /// sign a PE image hash with cert and key
+    /// Note: the `certfile` and `private_key` should in PEM format
+    /// the program_name specified programName in SpcSpOpusInfo which is optional
     pub fn do_sign_signature(
         file_hash: Vec<u8>,
         certfile: Vec<u8>, // pem in utf-8
@@ -357,7 +375,9 @@ impl<'a> EfiImage<'a> {
 
         Ok(Signature(wincert))
     }
-
+    
+    /// get the digest alogrithm from a PE struct
+    /// If the PE struct does not contain a signature None is returned
     pub fn get_digest_algo(&self) -> Result<Option<DigestAlgorithm>> {
         match self.signatures.len() {
             0 => Ok(None),
@@ -436,6 +456,7 @@ impl<'a> EfiImage<'a> {
         Ok((res, cert_table))
     }
 
+    /// parse a binary data into a PE struct
     pub fn parse(buf: &'a [u8]) -> Result<Self> {
         let pe = Box::new(PE::parse(buf).context(PESnafu {})?);
         let mut rdr = Cursor::new(buf);
@@ -479,7 +500,7 @@ impl<'a> EfiImage<'a> {
             signatures: res,
         })
     }
-
+    /// get the PE checksum from the header
     pub fn get_checksum_from_header(&self) -> Result<u32> {
         let mut rdr = Cursor::new(&self.raw);
         rdr.set_position(self.checksum.offset as u64);
@@ -488,7 +509,7 @@ impl<'a> EfiImage<'a> {
             size: mem::size_of::<u32>(),
         })?)
     }
-    // get digest from EFI image
+    /// get digest from EFI image
     pub fn get_digest(&self) -> Result<Option<Vec<u8>>> {
         let mut hashes = Vec::new();
         for sig in self.signatures.iter() {
@@ -516,10 +537,27 @@ impl<'a> EfiImage<'a> {
         }
     }
 
-    // follow the calculating the pe image hash guard in authenticode spec:
-    // checksum, certificate table data directory and attribute certificate table are excluded from the whole header
-    // all sections are included by sorting ASC order by PointerToRawData
-    // the data remain behind certificate table also included
+    /// follow the calculating the pe image hash guard in authenticode spec:
+    /// checksum, certificate table data directory and attribute certificate table are excluded from the whole header
+    /// all sections are included by sorting ASC order by PointerToRawData
+    /// the data remain behind certificate table also included
+    /// 1.	Load the image header into memory.
+    /// 2.	Initialize a hash algorithm context.
+    /// 3.	Hash the image header from its base to immediately before the start of the checksum address, as specified in Optional Header Windows-Specific Fields.
+    /// 4.	Skip over the checksum, which is a 4-byte field.
+    /// 5.	Hash everything from the end of the checksum field to immediately before the start of the Certificate Table entry, as specified in Optional Header Data Directories.
+    /// 6.	Get the Attribute Certificate Table address and size from the Certificate Table entry. For details, see section 5.7 of the PE/COFF specification.
+    /// 7.	Exclude the Certificate Table entry from the calculation and hash everything from the end of the Certificate Table entry to the end of image header, including Section Table (headers).The Certificate Table entry is 8 bytes long, as specified in Optional Header Data Directories. 
+    /// 8.	Create a counter called SUM_OF_BYTES_HASHED, which is not part of the signature. Set this counter to the SizeOfHeaders field, as specified in Optional Header Windows-Specific Field.
+    /// 9.	Build a temporary table of pointers to all of the section headers in the image. The NumberOfSections field of COFF File Header indicates how big the table should be. Do not include any section headers in the table whose SizeOfRawData field is zero. 
+    /// 10.	Using the PointerToRawData field (offset 20) in the referenced SectionHeader structure as a key, arrange the table's elements in ascending order. In other words, sort the section headers in ascending order according to the disk-file offset of the sections.
+    /// 11.	Walk through the sorted table, load the corresponding section into memory, and hash the entire section. Use the SizeOfRawData field in the SectionHeader structure to determine the amount of data to hash.
+    /// 12.	Add the section’s SizeOfRawData value to SUM_OF_BYTES_HASHED.
+    /// 13.	Repeat steps 11 and 12 for all of the sections in the sorted table.
+    /// 14.	Create a value called FILE_SIZE, which is not part of the signature. Set this value to the image’s file size, acquired from the underlying file system. If FILE_SIZE is greater than SUM_OF_BYTES_HASHED, the file contains extra data that must be added to the hash. This data begins at the SUM_OF_BYTES_HASHED file offset, and its length is:
+    /// (File Size) – ((Size of AttributeCertificateTable) + SUM_OF_BYTES_HASHED)
+    /// Note: The size of Attribute Certificate Table is specified in the second ULONG value in the Certificate Table entry (32 bit: offset 132, 64 bit: offset 148) in Optional Header Data Directories.
+    /// 15.	Finalize the hash algorithm context.
     pub fn compute_digest(&self, alg: DigestAlgorithm) -> Result<Vec<u8>> {
         let hdr = self
             .pe
@@ -624,8 +662,8 @@ impl<'a> EfiImage<'a> {
     pub fn get_pe_ref(&self) -> &Box<PE> {
         &self.pe
     }
-    // reference: https://www.cnblogs.com/concurrency/p/3926698.html
-    // notice: call this method need flush self.raw first
+    /// reference: https://www.cnblogs.com/concurrency/p/3926698.html
+    /// notice: call this method need flush self.raw first
     pub fn compute_check_sum(&self) -> Result<u32> {
         let file_size = self.raw.len();
         let checksum_offset = EfiImage::get_check_sum_offset(&self.pe);
@@ -647,7 +685,7 @@ impl<'a> EfiImage<'a> {
         Ok(file_size as u32 + checksum)
     }
 
-    // embedded signatures into the image
+    /// embedded signatures into the image
     pub fn set_authenticode(&self, signatures: Vec<Signature>) -> Result<Vec<u8>> {
         let hdr = self
             .pe
@@ -754,8 +792,8 @@ impl<'a> EfiImage<'a> {
         Ok(res)
     }
 
-    // how to verify a signature against its binary
-    // refer from microsoft authenticode_pe.docx
+    /// how to verify a signature against its binary
+    /// refer from microsoft authenticode_pe.docx
     pub fn verify(&self) -> Result<()> {
         // extracting and verify pkcs #7
         // certificate processing
@@ -807,6 +845,7 @@ impl<'a> EfiImage<'a> {
         Ok(self.set_authenticode(vec![signature])?)
     }
 
+    /// print some info about the PE struct
     pub fn print_info(&self) -> Result<()> {
         debug!("EFI image info:");
         debug!(
