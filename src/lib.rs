@@ -17,12 +17,13 @@
 #![feature(error_generic_member_access)]
 #![feature(provide_any)]
 use crate::error::{
-    AlgorithmSnafu, AuthenticodeSnafu, InvalidMagicInOptHdrSnafu,
-    MissingOptHdrSnafu, NoDigestAlgoSnafu, ConvertPEM2PKCS7Snafu, OpenFileSnafu, PESnafu,
-    ParseCertificateSnafu, ParseImageSnafu, ParsePrivateKeySnafu, PemFileSnafu, ReadBtyeSnafu,
-    ReadLeftDataSnafu, Result, WinCertSnafu, WriteBtyeSnafu, PemDecodeSnafu
+    AlgorithmSnafu, AuthenticodeSnafu, ConvertPEM2PKCS7Snafu, InvalidMagicInOptHdrSnafu,
+    MissingOptHdrSnafu, NoDigestAlgoSnafu, OpenFileSnafu, PESnafu, ParseCertificateSnafu,
+    ParseImageSnafu, ParsePrivateKeySnafu, PemDecodeSnafu, PemFileSnafu, ReadBtyeSnafu,
+    ReadLeftDataSnafu, Result, WinCertSnafu, WriteBtyeSnafu,
 };
 use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
+use core::slice;
 use digest::DynDigest;
 use goblin::pe::data_directories::SIZEOF_DATA_DIRECTORY;
 use goblin::pe::header::{PE_MAGIC, SIZEOF_COFF_HEADER, SIZEOF_PE_MAGIC};
@@ -34,23 +35,26 @@ use goblin::pe::section_table::SectionTable;
 use goblin::pe::{data_directories::DataDirectory, PE};
 use log::{debug, warn};
 use md5;
-use openssl_sys::{PKCS7_new, PKCS7_set_type, PKCS7_content_new, NID_pkcs7_signed, NID_pkcs7_data, BIO_new, BIO_s_mem, BIO_new_mem_buf, c_void, PKCS7_add_certificate, PEM_read_bio_X509, PEM_write_bio_PKCS7, BIO_get_mem_data};
+use openssl_sys::{
+    c_void, BIO_get_mem_data, BIO_new, BIO_new_mem_buf, BIO_s_mem, NID_pkcs7_data,
+    NID_pkcs7_signed, PEM_read_bio_X509, PEM_write_bio_PKCS7, PKCS7_add_certificate,
+    PKCS7_content_new, PKCS7_new, PKCS7_set_type,
+};
 use picky::key::PrivateKey;
 use picky::pem::Pem;
 use picky::x509::date::UtcDate;
 use picky::x509::pkcs7::authenticode::{AuthenticodeSignature, ShaVariant};
-use picky::x509::pkcs7::{Pkcs7};
+use picky::x509::pkcs7::Pkcs7;
 use picky::x509::wincert::{CertificateType, WinCertificate};
 use sha1;
 use sha2;
 use snafu::{OptionExt, ResultExt};
-use core::slice;
 use std::fmt::Display;
 use std::fs::File;
 use std::io::{BufRead, BufReader, Cursor};
 use std::mem;
 use std::path::PathBuf;
-use std::ptr::{null_mut};
+use std::ptr::null_mut;
 use std::str;
 
 pub mod error;
@@ -64,6 +68,7 @@ pub struct Section {
     pub data: Vec<u8>,
 }
 
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub enum DigestAlgorithm {
     Sha1,
     Sha256,
@@ -74,7 +79,6 @@ impl TryFrom<ShaVariant> for DigestAlgorithm {
     type Error = error::Error;
 
     fn try_from(value: ShaVariant) -> Result<DigestAlgorithm> {
-
         match value {
             ShaVariant::MD5 => Ok(DigestAlgorithm::MD5),
             ShaVariant::SHA1 => Ok(DigestAlgorithm::Sha1),
@@ -103,6 +107,7 @@ pub struct EfiImage<'a> {
     pub cert_data_directory: Section,
     pub overlay: Option<Vec<Section>>,
     pub signatures: Vec<Signature>,
+    pub zero_padding: usize,
 }
 
 const CHECK_SUM_OFFSET: usize = 64; // offset from start of optional header to check sum filed
@@ -113,12 +118,12 @@ const SIZEOF_CERT_TABLE: usize = mem::size_of::<DataDirectory>() as usize;
 impl Signature {
     /// encode the EFI signature into a Vec<u8>
     pub fn encode(&self) -> Result<Vec<u8>> {
-        Ok(self.0.clone().encode().context(WinCertSnafu{})?)
+        Ok(self.0.clone().encode().context(WinCertSnafu {})?)
     }
     /// decode the a Vec<u8> into the EFI signature
-    pub fn decode(buf :&[u8]) -> Result<Self> {
+    pub fn decode(buf: &[u8]) -> Result<Self> {
         Ok(Signature(
-            WinCertificate::decode(buf).context(WinCertSnafu{})?
+            WinCertificate::decode(buf).context(WinCertSnafu {})?,
         ))
     }
 }
@@ -211,7 +216,7 @@ impl<'a> EfiImage<'a> {
         })
     }
     /// convert a PEM formatted ceritificate into pkcs7 signedData format
-    /// 
+    ///
     /// # Examples
     /// ```no_run
     /// use std::io::Write;
@@ -224,39 +229,66 @@ impl<'a> EfiImage<'a> {
     /// let mut file = std::fs::File::create("cert.p7b").unwrap();
     /// file.write_all(&p7).unwrap();
     /// ```
-    pub fn pem_to_p7(buf :&[u8]) -> Result<Vec<u8>> {
+    pub fn pem_to_p7(buf: &[u8]) -> Result<Vec<u8>> {
         unsafe {
             let p7 = PKCS7_new();
             if p7.is_null() {
-                return ConvertPEM2PKCS7Snafu{reason: "failed to init a new PKCS7 struct"}.fail()?;
+                return ConvertPEM2PKCS7Snafu {
+                    reason: "failed to init a new PKCS7 struct",
+                }
+                .fail()?;
             }
+
             if PKCS7_set_type(p7, NID_pkcs7_signed) == 0 {
-                return ConvertPEM2PKCS7Snafu{reason: "failed to PKCS7_set_type"}.fail()?;
+                return ConvertPEM2PKCS7Snafu {
+                    reason: "failed to PKCS7_set_type",
+                }
+                .fail()?;
             }
+
             if PKCS7_content_new(p7, NID_pkcs7_data) == 0 {
-                return ConvertPEM2PKCS7Snafu{reason: "failed to PKCS7_content_new"}.fail()?;
+                return ConvertPEM2PKCS7Snafu {
+                    reason: "failed to PKCS7_content_new",
+                }
+                .fail()?;
             }
-            //let b = BIO_new(BIO_s_mem());
+
             let b = BIO_new_mem_buf(buf.as_ptr() as *const c_void, buf.len() as i32);
             if b.is_null() {
-                return ConvertPEM2PKCS7Snafu{reason: "failed to create bio buffer"}.fail()?;
+                return ConvertPEM2PKCS7Snafu {
+                    reason: "failed to create bio buffer",
+                }
+                .fail()?;
             }
 
             let x509 = PEM_read_bio_X509(b, null_mut(), None, null_mut());
             if x509.is_null() {
-                return ConvertPEM2PKCS7Snafu{reason: "failed to read x509 from buffer"}.fail()?;
+                return ConvertPEM2PKCS7Snafu {
+                    reason: "failed to read x509 from buffer",
+                }
+                .fail()?;
             }
+
             if PKCS7_add_certificate(p7, x509) == 0 {
-                return ConvertPEM2PKCS7Snafu{reason: "failed to add cert"}.fail()?;
+                return ConvertPEM2PKCS7Snafu {
+                    reason: "failed to add cert",
+                }
+                .fail()?;
             }
 
             let out = BIO_new(BIO_s_mem());
             if out.is_null() {
-                return ConvertPEM2PKCS7Snafu{reason: "failed to create output buffer"}.fail()?;
+                return ConvertPEM2PKCS7Snafu {
+                    reason: "failed to create output buffer",
+                }
+                .fail()?;
             }
 
             if PEM_write_bio_PKCS7(out, p7) == 0 {
-                return ConvertPEM2PKCS7Snafu{reason: "failed to write pkcs7 back to buffer"}.fail()?;
+                return ConvertPEM2PKCS7Snafu {
+                    reason: "failed to write pkcs7 back to buffer",
+                }
+                .fail()?;
             }
 
             let mut ptr = null_mut();
@@ -345,12 +377,15 @@ impl<'a> EfiImage<'a> {
     /// the program_name specified programName in SpcSpOpusInfo which is optional
     pub fn do_sign_signature(
         file_hash: Vec<u8>,
-        certfile: Vec<u8>, // pem in utf-8
+        certfile: Vec<u8>,    // pem in utf-8
         private_key: Vec<u8>, // pem in utf-8
         program_name: Option<String>,
     ) -> Result<Signature> {
-        let pkey = PrivateKey::from_pem_str(str::from_utf8(&private_key).context(PemDecodeSnafu {})?).context(ParsePrivateKeySnafu {})?;
-        let pkcs7 = Pkcs7::from_pem_str(str::from_utf8(&certfile).context(PemDecodeSnafu {})?).context(ParseCertificateSnafu {})?;
+        let pkey =
+            PrivateKey::from_pem_str(str::from_utf8(&private_key).context(PemDecodeSnafu {})?)
+                .context(ParsePrivateKeySnafu {})?;
+        let pkcs7 = Pkcs7::from_pem_str(str::from_utf8(&certfile).context(PemDecodeSnafu {})?)
+            .context(ParseCertificateSnafu {})?;
 
         let authenticode_signature = AuthenticodeSignature::new(
             &pkcs7,
@@ -375,7 +410,7 @@ impl<'a> EfiImage<'a> {
 
         Ok(Signature(wincert))
     }
-    
+
     /// get the digest alogrithm from a PE struct
     /// If the PE struct does not contain a signature None is returned
     pub fn get_digest_algo(&self) -> Result<Option<DigestAlgorithm>> {
@@ -384,10 +419,10 @@ impl<'a> EfiImage<'a> {
             _ => {
                 let code = AuthenticodeSignature::from_der(&self.signatures[0].0.get_certificate())
                     .context(AuthenticodeSnafu {})?;
-                Ok(Some(
-                    DigestAlgorithm::try_from(ShaVariant::try_from(code.0.digest_algorithms()[0].oid_asn1().clone())
-                        .context(AlgorithmSnafu {})?)?,
-                ))
+                Ok(Some(DigestAlgorithm::try_from(
+                    ShaVariant::try_from(code.0.digest_algorithms()[0].oid_asn1().clone())
+                        .context(AlgorithmSnafu {})?,
+                )?))
             }
         }
     }
@@ -485,8 +520,9 @@ impl<'a> EfiImage<'a> {
 
         let mut raw = buf.to_vec();
         // add some padding to end of the file so that the file size is byte aligned
+        let mut padding = 0;
         if raw.len() % 8 != 0 {
-            let padding = (raw.len() / 8 + 1) * 8 - raw.len();
+            padding = (raw.len() / 8 + 1) * 8 - raw.len();
             debug!("zero-pad {} bytes", padding);
             raw.append(&mut vec![0u8; padding]);
         }
@@ -498,6 +534,7 @@ impl<'a> EfiImage<'a> {
             cert_table: cert_table,
             overlay: overlay,
             signatures: res,
+            zero_padding: padding,
         })
     }
     /// get the PE checksum from the header
@@ -547,9 +584,9 @@ impl<'a> EfiImage<'a> {
     /// 4.	Skip over the checksum, which is a 4-byte field.
     /// 5.	Hash everything from the end of the checksum field to immediately before the start of the Certificate Table entry, as specified in Optional Header Data Directories.
     /// 6.	Get the Attribute Certificate Table address and size from the Certificate Table entry. For details, see section 5.7 of the PE/COFF specification.
-    /// 7.	Exclude the Certificate Table entry from the calculation and hash everything from the end of the Certificate Table entry to the end of image header, including Section Table (headers).The Certificate Table entry is 8 bytes long, as specified in Optional Header Data Directories. 
+    /// 7.	Exclude the Certificate Table entry from the calculation and hash everything from the end of the Certificate Table entry to the end of image header, including Section Table (headers).The Certificate Table entry is 8 bytes long, as specified in Optional Header Data Directories.
     /// 8.	Create a counter called SUM_OF_BYTES_HASHED, which is not part of the signature. Set this counter to the SizeOfHeaders field, as specified in Optional Header Windows-Specific Field.
-    /// 9.	Build a temporary table of pointers to all of the section headers in the image. The NumberOfSections field of COFF File Header indicates how big the table should be. Do not include any section headers in the table whose SizeOfRawData field is zero. 
+    /// 9.	Build a temporary table of pointers to all of the section headers in the image. The NumberOfSections field of COFF File Header indicates how big the table should be. Do not include any section headers in the table whose SizeOfRawData field is zero.
     /// 10.	Using the PointerToRawData field (offset 20) in the referenced SectionHeader structure as a key, arrange the table's elements in ascending order. In other words, sort the section headers in ascending order according to the disk-file offset of the sections.
     /// 11.	Walk through the sorted table, load the corresponding section into memory, and hash the entire section. Use the SizeOfRawData field in the SectionHeader structure to determine the amount of data to hash.
     /// 12.	Add the section’s SizeOfRawData value to SUM_OF_BYTES_HASHED.
@@ -659,30 +696,91 @@ impl<'a> EfiImage<'a> {
         Ok(hasher.finalize().to_vec())
     }
 
+    fn update_cert_directory(&self, rva :u32, size :u32, res :&mut Vec<u8>) -> Result<()> {
+        let dd_offset = EfiImage::get_dd_offset(&self.pe)?;
+        // insert the data directory into origin pe
+        let mut writer: Vec<u8> = Vec::new();
+
+        writer
+            .write_u32::<LittleEndian>(rva)
+            .context(WriteBtyeSnafu {
+                offset: writer.len() as usize,
+                size: mem::size_of::<u32>(),
+            })?;
+        writer
+            .write_u32::<LittleEndian>(size)
+            .context(WriteBtyeSnafu {
+                offset: writer.len() as usize,
+                size: mem::size_of::<u32>(),
+            })?;
+        res.splice(
+            dd_offset..(dd_offset + SIZEOF_DATA_DIRECTORY),
+            writer.iter().cloned(),
+        );
+        debug!("new image total size: {:#04x}", res.len());
+        Ok(())
+    }
+
     pub fn get_pe_ref(&self) -> &Box<PE> {
         &self.pe
     }
     /// reference: https://www.cnblogs.com/concurrency/p/3926698.html
     /// notice: call this method need flush self.raw first
     pub fn compute_check_sum(&self) -> Result<u32> {
-        let file_size = self.raw.len();
+        let file_size = self.raw.len() - self.zero_padding;
         let checksum_offset = EfiImage::get_check_sum_offset(&self.pe);
         let checksum_steps = checksum_offset >> 1;
         let checksum_after_size = (file_size - checksum_offset - 4) >> 1;
         let checksum_after_offset = checksum_offset + 4;
 
         let mut checksum = EfiImage::check_sum(0, &self.raw[..checksum_offset], checksum_steps)?;
+        debug!(
+            "check_sum_compute: range from [{:#04x} - {:#04x}], checksum: {}",
+            0, checksum_offset, checksum
+        );
+
         checksum = EfiImage::check_sum(
             checksum,
             &self.raw[checksum_after_offset..],
             checksum_after_size,
         )?;
+        debug!(
+            "check_sum_compute: range from [{:#04x} - {:#04x}], checksum: {}",
+            checksum_after_offset, checksum_after_size, checksum
+        );
 
-        if file_size & 1 > 0 {
+        if (file_size & 1) > 0 {
             checksum += self.raw[file_size - 1] as u32;
+            debug!("check_sum_compute: append last byte, checksum {}", checksum)
         }
 
+        debug!(
+            "check_sum_compute: add size and checksum {} + {} = {}",
+            file_size,
+            checksum,
+            file_size as u32 + checksum
+        );
+
         Ok(file_size as u32 + checksum)
+    }
+
+    fn update_check_sum(res :&mut Vec<u8>) -> Result<()> {
+        let temp_buf = res.clone();
+        let temp_pe = EfiImage::parse(&temp_buf)?;
+        let new_checksum = temp_pe.compute_check_sum()?;
+
+        debug!("new checksum for new pe image: {}", new_checksum);
+
+        let mut writer = Cursor::new(res);
+
+        writer.set_position(temp_pe.checksum.offset as u64);
+        writer
+            .write_u32::<LittleEndian>(new_checksum)
+            .context(WriteBtyeSnafu {
+                offset: temp_pe.checksum.offset,
+                size: mem::size_of::<u32>(),
+            })?;
+        Ok(())
     }
 
     /// embedded signatures into the image
@@ -767,28 +865,9 @@ impl<'a> EfiImage<'a> {
             }
         }
         debug!("new rva and size: {:#04x}/{:#04x}", rva, size);
+        self.update_cert_directory(rva, size, &mut res)?;
+        EfiImage::update_check_sum(&mut res)?;
 
-        let dd_offset = EfiImage::get_dd_offset(&self.pe)?;
-        // insert the data directory into origin pe
-        let mut writer: Vec<u8> = Vec::new();
-
-        writer
-            .write_u32::<LittleEndian>(rva)
-            .context(WriteBtyeSnafu {
-                offset: writer.len() as usize,
-                size: mem::size_of::<u32>(),
-            })?;
-        writer
-            .write_u32::<LittleEndian>(size)
-            .context(WriteBtyeSnafu {
-                offset: writer.len() as usize,
-                size: mem::size_of::<u32>(),
-            })?;
-        res.splice(
-            dd_offset..(dd_offset + SIZEOF_DATA_DIRECTORY),
-            writer.iter().cloned(),
-        );
-        debug!("new image total size: {:#04x}", res.len());
         Ok(res)
     }
 
@@ -840,8 +919,12 @@ impl<'a> EfiImage<'a> {
 
         let file_hash = self.compute_digest(algo)?;
 
-        let signature =
-            EfiImage::do_sign_signature(file_hash.to_vec(), cert_pem.to_string().into_bytes(), key_pem.to_string().into_bytes(), program_name)?;
+        let signature = EfiImage::do_sign_signature(
+            file_hash.to_vec(),
+            cert_pem.to_string().into_bytes(),
+            key_pem.to_string().into_bytes(),
+            program_name,
+        )?;
         Ok(self.set_authenticode(vec![signature])?)
     }
 

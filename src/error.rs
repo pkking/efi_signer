@@ -13,19 +13,18 @@
  *  * // See the Mulan PSL v2 for more details.
  *
  */
-use picky::x509::wincert::WinCertificateError;
-use picky_asn1_x509::algorithm_identifier::{UnsupportedAlgorithmError};
+use goblin::error::Error as PeError;
 use picky::key::KeyError;
-use picky::x509::pkcs7::Pkcs7Error;
+use picky::pem::PemError;
 use picky::x509::pkcs7::authenticode::AuthenticodeError;
+use picky::x509::pkcs7::Pkcs7Error;
+use picky::x509::wincert::WinCertificateError;
+use picky_asn1_x509::algorithm_identifier::UnsupportedAlgorithmError;
 use snafu::prelude::*;
 use std::io::Error as IoError;
 use std::str::Utf8Error;
-use picky::pem::PemError;
-use goblin::error::Error as PeError;
 
 pub type Result<T> = std::result::Result<T, Error>;
-
 
 #[derive(Debug, Snafu)]
 pub struct Error(InnerError);
@@ -37,47 +36,55 @@ pub(crate) enum InnerError {
     #[snafu(display("Decode failed"))]
     DecodeFromDer {},
     #[snafu(display("Failed to read file {path}"))]
-    ReadFile {source: IoError, path: String},
+    ReadFile { source: IoError, path: String },
     #[snafu(display("Failed to open file {path}"))]
-    OpenFile {source: IoError, path: String},
+    OpenFile { source: IoError, path: String },
     #[snafu(display("Failed to decode pem file {path}"))]
-    PemFile {source: PemError, path: String},
+    PemFile { source: PemError, path: String },
     #[snafu(display("Missing optional header"))]
     MissingOptHdr {},
     #[snafu(display("Missing certificate table"))]
     MissingCertTbl {},
     #[snafu(display("Invalid magic:{magic} in optional header"))]
-    InvalidMagicInOptHdr {magic: u16},
+    InvalidMagicInOptHdr { magic: u16 },
     #[snafu(display("Failed to read {size} byte from {offset}"))]
-    ReadBtye {offset: usize, size: usize, source: IoError},
+    ReadBtye {
+        offset: usize,
+        size: usize,
+        source: IoError,
+    },
     #[snafu(display("Failed to write {size} byte from {offset}"))]
-    WriteBtye {offset: usize, size: usize, source: IoError},
+    WriteBtye {
+        offset: usize,
+        size: usize,
+        source: IoError,
+    },
     #[snafu(display("Parse EFI image failed, reason: {reason}"))]
-    ParseImage {reason: String},
+    ParseImage { reason: String },
     #[snafu(display("PEM decode failed"))]
-    PemDecode {source: Utf8Error},
+    PemDecode { source: Utf8Error },
     #[snafu(display("Parse private key failed"))]
-    ParsePrivateKey {source: KeyError},
+    ParsePrivateKey { source: KeyError },
     #[snafu(display("Parse certificate failed"))]
-    ParseCertificate {source: Pkcs7Error},
+    ParseCertificate { source: Pkcs7Error },
     #[snafu(display("Failed to sign the image, reason: {reason}"))]
-    Sign {reason: String},
+    Sign { reason: String },
     #[snafu(display("Failed create a authenticode"))]
-    Authenticode {source: AuthenticodeError},
+    Authenticode { source: AuthenticodeError },
     #[snafu(display("Invalid digest algorithm"))]
-    Algorithm {source: UnsupportedAlgorithmError},
+    Algorithm { source: UnsupportedAlgorithmError },
     #[snafu(display("Failed to read left data in buffer"))]
-    ReadLeftData {source: IoError},
+    ReadLeftData { source: IoError },
     #[snafu(display("Failed to decode/encode to a wincert"))]
-    WinCert {source: WinCertificateError},
+    WinCert { source: WinCertificateError },
     #[snafu(display("Failed to decode to a PE/COFF struct"))]
-    PE {source: PeError},
+    PE { source: PeError },
     #[snafu(display("Failed to compute the digest"))]
-    ComputeDigest {reason: String},
+    ComputeDigest { reason: String },
     #[snafu(display("No digest algorithm existed"))]
     NoDigestAlgo {},
     #[snafu(display("Not supported algorithm"))]
     NotSupportedAlgo {},
     #[snafu(display("Failed to convert a pem cert to PKCS7 format: {reason}"))]
-    ConvertPEM2PKCS7 {reason: String},
+    ConvertPEM2PKCS7 { reason: String },
 }
