@@ -1,0 +1,75 @@
+name: Rust
+
+on:
+  push:
+    branches: [ "main", "master" ]
+  pull_request:
+    branches: [ "master", "master" ]
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  combo:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v3
+    - uses: actions-rs/toolchain@v1
+      with:
+        toolchain: nightly
+        override: true
+    - name: Pre-installing grcov
+      uses: actions-rs/install@v0.1
+      with:
+        crate: grcov
+        use-tool-cache: true
+    - uses: actions-rs/cargo@v1
+      with:
+        command: clean
+    - uses: actions-rs/cargo@v1
+      with:
+        command: test
+        args: --all-features --no-fail-fast  # Customize args for your own needs
+      env:
+        CARGO_INCREMENTAL: '0'
+        RUSTFLAGS: '-Zprofile -Ccodegen-units=1 -Cinline-threshold=0 -Clink-dead-code -Coverflow-checks=off -Cpanic=abort -Zpanic_abort_tests'
+        RUSTDOCFLAGS: '-Zprofile -Ccodegen-units=1 -Cinline-threshold=0 -Clink-dead-code -Coverflow-checks=off -Cpanic=abort -Zpanic_abort_tests'
+    - name: Gather coverage data
+      id: coverage
+      uses: actions-rs/grcov@v0.1
+      with:
+        coveralls-token: ${{ secrets.COVERALLS_TOKEN }}
+
+    - name: Coveralls upload
+      uses: coverallsapp/github-action@master
+      with:
+        github-token: ${{ secrets.GITHUB_TOKEN }}
+        parallel: true
+        path-to-lcov: ${{ steps.coverage.outputs.report }}
+
+  lints:
+    name: Clippy + rustfmt
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout sources
+        uses: actions/checkout@v2
+
+      - name: Install nightly toolchain
+        uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+          toolchain: nightly
+          override: true
+          components: rustfmt, clippy
+
+      - name: Run cargo fmt
+        uses: actions-rs/cargo@v1
+        with:
+          command: fmt
+          args: --all -- --check
+
+      - name: Run cargo clippy
+        uses: actions-rs/cargo@v1
+        with:
+          command: clippy
+          args: -- -D warnings
