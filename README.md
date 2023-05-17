@@ -1,4 +1,6 @@
 # EFI_SIGNER
+[![Coverage Status](https://coveralls.io/repos/github/pkking/efi_signer/badge.svg?branch=master)](https://coveralls.io/github/pkking/efi_signer?branch=master)
+
 A pure rust library to sign/verify the EFI image.
 
 # HOWs
