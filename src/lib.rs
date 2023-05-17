@@ -696,7 +696,7 @@ impl<'a> EfiImage<'a> {
         Ok(hasher.finalize().to_vec())
     }
 
-    fn update_cert_directory(&self, rva :u32, size :u32, res :&mut Vec<u8>) -> Result<()> {
+    fn update_cert_directory(&self, rva: u32, size: u32, res: &mut Vec<u8>) -> Result<()> {
         let dd_offset = EfiImage::get_dd_offset(&self.pe)?;
         // insert the data directory into origin pe
         let mut writer: Vec<u8> = Vec::new();
@@ -764,7 +764,7 @@ impl<'a> EfiImage<'a> {
         Ok(file_size as u32 + checksum)
     }
 
-    fn update_check_sum(res :&mut Vec<u8>) -> Result<()> {
+    fn update_check_sum(res: &mut Vec<u8>) -> Result<()> {
         let temp_buf = res.clone();
         let temp_pe = EfiImage::parse(&temp_buf)?;
         let new_checksum = temp_pe.compute_check_sum()?;
