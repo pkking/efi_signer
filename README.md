@@ -6,13 +6,14 @@ see [examples](./examples/main.rs)
 
 ## how to sign a EFI image
 1. generate certificates
-```bash
-bash -ex scripts/make_codesign_cert.sh
-```
+    ```bash
+    bash -ex scripts/make_codesign_cert.sh
+    ```
+
 1. sign a EFI image
-```bash
-./main sign --key key.pem --cert certificate.pem shimx64.efi shimx64.efi.signed
-```
+    ```bash
+    ./main sign --key key.pem --cert certificate.pem shimx64.efi shimx64.efi.signed
+    ```
 
 ## how to parse the EFI image
 ```bash

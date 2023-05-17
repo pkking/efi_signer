@@ -63,12 +63,6 @@ struct P7b {
 
 #[derive(Args)]
 struct Parse {
-    #[arg(long, short, required(true))]
-    #[arg(help = "certificate in pem format")]
-    cert: String,
-    #[arg(long)]
-    #[arg(help = "whether to verify the image")]
-    verify: bool,
     #[arg(help = "EFI image path to parse")]
     path: String,
 }
@@ -124,15 +118,11 @@ fn sign(path: &str, output: &str, key: &str, cert: &str) {
     file.write_all(&sig).unwrap();
 }
 
-fn parse(path: &str, verify: bool) {
+fn parse(path: &str) {
     let buf = read(path).unwrap();
     let pe = efi_signer::EfiImage::parse(&buf).unwrap();
 
     pe.print_info().unwrap();
-
-    if verify {
-        pe.verify().unwrap();
-    }
 }
 
 fn main() {
@@ -145,7 +135,7 @@ fn main() {
     env_logger::init();
 
     match app.command {
-        Commands::Parse(p) => parse(&p.path, p.verify),
+        Commands::Parse(p) => parse(&p.path),
         Commands::Sign(s) => sign(&s.path, &s.output, &s.key, &s.cert),
         Commands::P7b(p) => p7b(&p.path, &p.output),
     }

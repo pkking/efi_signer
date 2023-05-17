@@ -34,7 +34,7 @@ use goblin::pe::optional_header::{
 use goblin::pe::section_table::SectionTable;
 use goblin::pe::{data_directories::DataDirectory, PE};
 use log::{debug, warn};
-use md5;
+
 use openssl_sys::{
     c_void, BIO_get_mem_data, BIO_new, BIO_new_mem_buf, BIO_s_mem, NID_pkcs7_data,
     NID_pkcs7_signed, PEM_read_bio_X509, PEM_write_bio_PKCS7, PKCS7_add_certificate,
@@ -46,14 +46,13 @@ use picky::x509::date::UtcDate;
 use picky::x509::pkcs7::authenticode::{AuthenticodeSignature, ShaVariant};
 use picky::x509::pkcs7::Pkcs7;
 use picky::x509::wincert::{CertificateType, WinCertificate};
-use sha1;
-use sha2;
+
 use snafu::{OptionExt, ResultExt};
 use std::fmt::Display;
 use std::fs::File;
 use std::io::{BufRead, BufReader, Cursor};
 use std::mem;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::ptr::null_mut;
 use std::str;
 
@@ -112,8 +111,8 @@ pub struct EfiImage<'a> {
 
 const CHECK_SUM_OFFSET: usize = 64; // offset from start of optional header to check sum filed
 const SIZEOF_CHECKSUM: usize = mem::size_of::<u32>();
-const CERT_TABLE_OFFSET: usize = 4 * mem::size_of::<DataDirectory>() as usize; // offset from start of data directories to cert table direcotory
-const SIZEOF_CERT_TABLE: usize = mem::size_of::<DataDirectory>() as usize;
+const CERT_TABLE_OFFSET: usize = 4 * mem::size_of::<DataDirectory>(); // offset from start of data directories to cert table direcotory
+const SIZEOF_CERT_TABLE: usize = mem::size_of::<DataDirectory>();
 
 impl Signature {
     /// encode the EFI signature into a Vec<u8>
@@ -128,27 +127,26 @@ impl Signature {
     }
 }
 impl<'a> EfiImage<'a> {
-    fn get_pem_from_file(certfile_path: &PathBuf) -> Result<Pem<'a>> {
-        let certfile = Pem::read_from(&mut BufReader::new(
-            File::open(certfile_path.as_path()).context(OpenFileSnafu {
-                path: certfile_path.as_path().display().to_string(),
-            })?,
-        ))
+    fn get_pem_from_file(certfile_path: &Path) -> Result<Pem<'a>> {
+        let certfile = Pem::read_from(&mut BufReader::new(File::open(certfile_path).context(
+            OpenFileSnafu {
+                path: certfile_path.display().to_string(),
+            },
+        )?))
         .context(PemFileSnafu {
-            path: certfile_path.as_path().display().to_string(),
+            path: certfile_path.display().to_string(),
         })?;
 
         Ok(certfile)
     }
 
     fn get_cert_table_addr(pe: &PE) -> Result<Option<DataDirectory>> {
-        Ok(pe
+        Ok(*pe
             .header
             .optional_header
             .context(MissingOptHdrSnafu {})?
             .data_directories
-            .get_certificate_table()
-            .clone())
+            .get_certificate_table())
     }
 
     fn get_cert_table_section(pe: &PE, pe_raw: &[u8]) -> Result<Section> {
@@ -195,7 +193,7 @@ impl<'a> EfiImage<'a> {
     }
 
     fn get_check_sum_section(pe: &PE, pe_raw: &[u8]) -> Result<Section> {
-        let checksum_offset = EfiImage::get_check_sum_offset(&pe);
+        let checksum_offset = EfiImage::get_check_sum_offset(pe);
         Ok(Section {
             offset: checksum_offset,
             data: pe_raw[checksum_offset..checksum_offset + mem::size_of::<u32>()].to_vec(),
@@ -205,7 +203,7 @@ impl<'a> EfiImage<'a> {
     fn get_dd_offset(pe: &PE) -> Result<usize> {
         Ok(EfiImage::get_check_sum_offset(pe)
             + SIZEOF_CHECKSUM
-            + EfiImage::get_cert_table_offset(&pe)?)
+            + EfiImage::get_cert_table_offset(pe)?)
     }
 
     fn get_cert_dd_secion(pe: &PE, pe_raw: &[u8]) -> Result<Section> {
@@ -332,7 +330,7 @@ impl<'a> EfiImage<'a> {
         let mut res: Vec<Section> = Vec::new();
         let file_size = pe_raw.len();
         let end_of_sections =
-            EfiImage::get_section_size(&pe) + hdr.windows_fields.size_of_headers as usize;
+            EfiImage::get_section_size(pe) + hdr.windows_fields.size_of_headers as usize;
 
         if file_size < end_of_sections {
             ParseImageSnafu {
@@ -347,7 +345,7 @@ impl<'a> EfiImage<'a> {
         // if we have a cert table
         if let Some(cert_dd) = EfiImage::get_cert_table_addr(pe)? {
             let overlay_offset =
-                EfiImage::get_section_size(&pe) + hdr.windows_fields.size_of_headers as usize;
+                EfiImage::get_section_size(pe) + hdr.windows_fields.size_of_headers as usize;
             // 1st part of overlay section contains: <end_of_sections> - <start_of_attribute_cert_table>
 
             res.push(Section {
@@ -527,12 +525,12 @@ impl<'a> EfiImage<'a> {
             raw.append(&mut vec![0u8; padding]);
         }
         Ok(EfiImage {
-            pe: pe,
-            raw: raw,
+            pe,
+            raw,
             cert_data_directory: cert_dd,
-            checksum: checksum,
-            cert_table: cert_table,
-            overlay: overlay,
+            checksum,
+            cert_table,
+            overlay,
             signatures: res,
             zero_padding: padding,
         })
@@ -556,7 +554,7 @@ impl<'a> EfiImage<'a> {
                 continue;
             };
 
-            if hashes.len() != 0 && hash != hashes[0] {
+            if !hashes.is_empty() && hash != hashes[0] {
                 ParseImageSnafu {
                     reason: format!(
                         "signature with different hash {:x?} and {:x?}",
@@ -578,23 +576,24 @@ impl<'a> EfiImage<'a> {
     /// checksum, certificate table data directory and attribute certificate table are excluded from the whole header
     /// all sections are included by sorting ASC order by PointerToRawData
     /// the data remain behind certificate table also included
-    /// 1.	Load the image header into memory.
-    /// 2.	Initialize a hash algorithm context.
-    /// 3.	Hash the image header from its base to immediately before the start of the checksum address, as specified in Optional Header Windows-Specific Fields.
-    /// 4.	Skip over the checksum, which is a 4-byte field.
-    /// 5.	Hash everything from the end of the checksum field to immediately before the start of the Certificate Table entry, as specified in Optional Header Data Directories.
-    /// 6.	Get the Attribute Certificate Table address and size from the Certificate Table entry. For details, see section 5.7 of the PE/COFF specification.
-    /// 7.	Exclude the Certificate Table entry from the calculation and hash everything from the end of the Certificate Table entry to the end of image header, including Section Table (headers).The Certificate Table entry is 8 bytes long, as specified in Optional Header Data Directories.
-    /// 8.	Create a counter called SUM_OF_BYTES_HASHED, which is not part of the signature. Set this counter to the SizeOfHeaders field, as specified in Optional Header Windows-Specific Field.
-    /// 9.	Build a temporary table of pointers to all of the section headers in the image. The NumberOfSections field of COFF File Header indicates how big the table should be. Do not include any section headers in the table whose SizeOfRawData field is zero.
-    /// 10.	Using the PointerToRawData field (offset 20) in the referenced SectionHeader structure as a key, arrange the table's elements in ascending order. In other words, sort the section headers in ascending order according to the disk-file offset of the sections.
-    /// 11.	Walk through the sorted table, load the corresponding section into memory, and hash the entire section. Use the SizeOfRawData field in the SectionHeader structure to determine the amount of data to hash.
-    /// 12.	Add the section’s SizeOfRawData value to SUM_OF_BYTES_HASHED.
-    /// 13.	Repeat steps 11 and 12 for all of the sections in the sorted table.
-    /// 14.	Create a value called FILE_SIZE, which is not part of the signature. Set this value to the image’s file size, acquired from the underlying file system. If FILE_SIZE is greater than SUM_OF_BYTES_HASHED, the file contains extra data that must be added to the hash. This data begins at the SUM_OF_BYTES_HASHED file offset, and its length is:
+    /// 1.    Load the image header into memory.
+    /// 2.    Initialize a hash algorithm context.
+    /// 3.    Hash the image header from its base to immediately before the start of the checksum address, as specified in Optional Header Windows-Specific Fields.
+    /// 4.    Skip over the checksum, which is a 4-byte field.
+    /// 5.    Hash everything from the end of the checksum field to immediately before the start of the Certificate Table entry, as specified in Optional Header Data Directories.
+    /// 6.    Get the Attribute Certificate Table address and size from the Certificate Table entry. For details, see section 5.7 of the PE/COFF specification.
+    /// 7.    Exclude the Certificate Table entry from the calculation and hash everything from the end of the Certificate Table entry to the end of image header, including Section Table (headers).The Certificate Table entry is 8 bytes long, as specified in Optional Header Data Directories.
+    /// 8.    Create a counter called SUM_OF_BYTES_HASHED, which is not part of the signature. Set this counter to the SizeOfHeaders field, as specified in Optional Header Windows-Specific Field.
+    /// 9.    Build a temporary table of pointers to all of the section headers in the image. The NumberOfSections field of COFF File Header indicates how big the table should be. Do not include any section headers in the table whose SizeOfRawData field is zero.
+    /// 10.    Using the PointerToRawData field (offset 20) in the referenced SectionHeader structure as a key, arrange the table's elements in ascending order. In other words, sort the section headers in ascending order according to the disk-file offset of the sections.
+    /// 11.    Walk through the sorted table, load the corresponding section into memory, and hash the entire section. Use the SizeOfRawData field in the SectionHeader structure to determine the amount of data to hash.
+    /// 12.    Add the section’s SizeOfRawData value to SUM_OF_BYTES_HASHED.
+    /// 13.    Repeat steps 11 and 12 for all of the sections in the sorted table.
+    /// 14.    Create a value called FILE_SIZE, which is not part of the signature. Set this value to the image’s file size, acquired from the underlying file system. If FILE_SIZE is greater than SUM_OF_BYTES_HASHED, the file contains extra data that must be added to the hash. This data begins at the SUM_OF_BYTES_HASHED file offset, and its length is:
     /// (File Size) – ((Size of AttributeCertificateTable) + SUM_OF_BYTES_HASHED)
     /// Note: The size of Attribute Certificate Table is specified in the second ULONG value in the Certificate Table entry (32 bit: offset 132, 64 bit: offset 148) in Optional Header Data Directories.
-    /// 15.	Finalize the hash algorithm context.
+    /// 15.    Finalize the hash algorithm context.
+    #[allow(clippy::box_default)]
     pub fn compute_digest(&self, alg: DigestAlgorithm) -> Result<Vec<u8>> {
         let hdr = self
             .pe
@@ -704,13 +703,13 @@ impl<'a> EfiImage<'a> {
         writer
             .write_u32::<LittleEndian>(rva)
             .context(WriteBtyeSnafu {
-                offset: writer.len() as usize,
+                offset: writer.len(),
                 size: mem::size_of::<u32>(),
             })?;
         writer
             .write_u32::<LittleEndian>(size)
             .context(WriteBtyeSnafu {
-                offset: writer.len() as usize,
+                offset: writer.len(),
                 size: mem::size_of::<u32>(),
             })?;
         res.splice(
@@ -721,7 +720,7 @@ impl<'a> EfiImage<'a> {
         Ok(())
     }
 
-    pub fn get_pe_ref(&self) -> &Box<PE> {
+    pub fn get_pe_ref(&self) -> &PE {
         &self.pe
     }
     /// reference: https://www.cnblogs.com/concurrency/p/3926698.html
@@ -861,7 +860,7 @@ impl<'a> EfiImage<'a> {
                     padding = (tmp.len() / 8 + 1) * 8 - tmp.len();
                 }
                 size += padding as u32;
-                res.append(&mut vec![0u8; padding as usize]);
+                res.append(&mut vec![0u8; padding]);
             }
         }
         debug!("new rva and size: {:#04x}/{:#04x}", rva, size);
@@ -925,7 +924,7 @@ impl<'a> EfiImage<'a> {
             key_pem.to_string().into_bytes(),
             program_name,
         )?;
-        Ok(self.set_authenticode(vec![signature])?)
+        self.set_authenticode(vec![signature])
     }
 
     /// print some info about the PE struct

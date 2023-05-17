@@ -1,6 +1,3 @@
-use efi_signer;
-use env_logger;
-
 pub fn init() {
     let _ = env_logger::builder().is_test(true).try_init();
 }
@@ -81,5 +78,5 @@ fn test_get_cert_table_non() {
     let efi_buf = include_bytes!("./shimx64.efi");
     let pe = efi_signer::EfiImage::parse(efi_buf).unwrap();
 
-    assert!(pe.signatures.len() == 0);
+    assert!(pe.signatures.is_empty());
 }

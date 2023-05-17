@@ -1,5 +1,3 @@
-use efi_signer;
-use env_logger;
 use std::path::PathBuf;
 use std::str::FromStr;
 
@@ -15,8 +13,8 @@ fn test_sign() {
 
     let sig = pe
         .sign_signature(
-            PathBuf::from_str("./certificate.p7b").unwrap(),
-            PathBuf::from_str("./key.pem").unwrap(),
+            PathBuf::from_str("./tests/certificate.p7b").unwrap(),
+            PathBuf::from_str("./tests/key.pem").unwrap(),
             None,
             efi_signer::DigestAlgorithm::Sha256,
         )
