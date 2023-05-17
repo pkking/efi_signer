@@ -1,5 +1,9 @@
 # EFI_SIGNER
-[![Coverage Status](https://coveralls.io/repos/github/pkking/efi_signer/badge.svg?branch=master)](https://coveralls.io/github/pkking/efi_signer?branch=master)
+[![Coverage Status](https://img.shields.io/coverallsCoverage/github/pkking/efi_signer?style=flat-square)](https://img.shields.io/coverallsCoverage/github/pkking/efi_signer?style=flat-square)
+[![cargo](https://img.shields.io/crates/d/efi_signer?style=flat-square)](https://img.shields.io/crates/d/efi_signer?style=flat-square)
+[![license](https://img.shields.io/crates/l/efi_signer?style=flat-square)](https://img.shields.io/crates/l/efi_signer?style=flat-square)
+[![](https://img.shields.io/crates/v/efi_signer?style=flat-square)](https://img.shields.io/crates/v/efi_signer?style=flat-square)
+[![](https://img.shields.io/docsrs/efi_signer?style=flat-square)](https://img.shields.io/docsrs/efi_signer?style=flat-square)
 
 A pure rust library to sign/verify the EFI image.
 
