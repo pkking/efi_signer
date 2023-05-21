@@ -16,13 +16,16 @@
 use goblin::error::Error as PeError;
 use picky::key::KeyError;
 use picky::pem::PemError;
+use picky::x509::certificate::CertError;
 use picky::x509::pkcs7::authenticode::AuthenticodeError;
+use picky::x509::pkcs7::ctl::CtlError;
 use picky::x509::pkcs7::Pkcs7Error;
 use picky::x509::wincert::WinCertificateError;
 use picky_asn1_x509::algorithm_identifier::UnsupportedAlgorithmError;
 use snafu::prelude::*;
 use std::io::Error as IoError;
 use std::str::Utf8Error;
+use std::string::FromUtf8Error;
 
 pub type Result<T> = std::result::Result<T, Error>;
 
@@ -41,6 +44,8 @@ pub(crate) enum InnerError {
     OpenFile { source: IoError, path: String },
     #[snafu(display("Failed to decode pem file {path}"))]
     PemFile { source: PemError, path: String },
+    #[snafu(display("Failed to fetch ctl from Microsoft"))]
+    CtlFetch { source: CtlError },
     #[snafu(display("Missing optional header"))]
     MissingOptHdr {},
     #[snafu(display("Missing certificate table"))]
@@ -69,8 +74,10 @@ pub(crate) enum InnerError {
     ParseCertificate { source: Pkcs7Error },
     #[snafu(display("Failed to sign the image, reason: {reason}"))]
     Sign { reason: String },
-    #[snafu(display("Failed create a authenticode"))]
+    #[snafu(display("Failed to create a authenticode"))]
     Authenticode { source: AuthenticodeError },
+    #[snafu(display("Failed to verify a authenticode"))]
+    AuthenticodeVerify { source: AuthenticodeError },
     #[snafu(display("Invalid digest algorithm"))]
     Algorithm { source: UnsupportedAlgorithmError },
     #[snafu(display("Failed to read left data in buffer"))]
@@ -87,4 +94,8 @@ pub(crate) enum InnerError {
     NotSupportedAlgo {},
     #[snafu(display("Failed to convert a pem cert to PKCS7 format: {reason}"))]
     ConvertPEM2PKCS7 { reason: String },
+    #[snafu(display("Failed to decode a pem cert into Cert struct"))]
+    CertDecode { source: CertError },
+    #[snafu(display("Failed to decode PEM from utf8 str"))]
+    PemDecodeFromUTF8 { source: FromUtf8Error },
 }

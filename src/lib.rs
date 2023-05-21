@@ -17,14 +17,15 @@
 #![feature(error_generic_member_access)]
 #![feature(provide_any)]
 use crate::error::{
-    AlgorithmSnafu, AuthenticodeSnafu, ConvertPEM2PKCS7Snafu, InvalidMagicInOptHdrSnafu,
-    MissingOptHdrSnafu, NoDigestAlgoSnafu, OpenFileSnafu, PESnafu, ParseCertificateSnafu,
-    ParseImageSnafu, ParsePrivateKeySnafu, PemDecodeSnafu, PemFileSnafu, ReadBtyeSnafu,
-    ReadLeftDataSnafu, Result, WinCertSnafu, WriteBtyeSnafu,
+    AlgorithmSnafu, AuthenticodeSnafu, CertDecodeSnafu, ConvertPEM2PKCS7Snafu,
+    InvalidMagicInOptHdrSnafu, MissingOptHdrSnafu, NoDigestAlgoSnafu, OpenFileSnafu, PESnafu,
+    ParseCertificateSnafu, ParseImageSnafu, ParsePrivateKeySnafu, PemDecodeSnafu, PemFileSnafu,
+    ReadBtyeSnafu, ReadLeftDataSnafu, Result, WinCertSnafu, WriteBtyeSnafu,
 };
 use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
 use core::slice;
 use digest::DynDigest;
+use error::{AuthenticodeVerifySnafu, CtlFetchSnafu, PemDecodeFromUTF8Snafu, ReadFileSnafu};
 use goblin::pe::data_directories::SIZEOF_DATA_DIRECTORY;
 use goblin::pe::header::{PE_MAGIC, SIZEOF_COFF_HEADER, SIZEOF_PE_MAGIC};
 use goblin::pe::optional_header::{
@@ -34,6 +35,7 @@ use goblin::pe::optional_header::{
 use goblin::pe::section_table::SectionTable;
 use goblin::pe::{data_directories::DataDirectory, PE};
 use log::{debug, warn};
+use picky::x509::Cert;
 
 use openssl_sys::{
     c_void, BIO_get_mem_data, BIO_new, BIO_new_mem_buf, BIO_s_mem, NID_pkcs7_data,
@@ -44,12 +46,12 @@ use picky::key::PrivateKey;
 use picky::pem::Pem;
 use picky::x509::date::UtcDate;
 use picky::x509::pkcs7::authenticode::{AuthenticodeSignature, ShaVariant};
-use picky::x509::pkcs7::Pkcs7;
+use picky::x509::pkcs7::{ctl, ctl::http_fetch::CtlHttpFetch, Pkcs7};
 use picky::x509::wincert::{CertificateType, WinCertificate};
 
 use snafu::{OptionExt, ResultExt};
 use std::fmt::Display;
-use std::fs::File;
+use std::fs::{read, File};
 use std::io::{BufRead, BufReader, Cursor};
 use std::mem;
 use std::path::{Path, PathBuf};
@@ -872,7 +874,21 @@ impl<'a> EfiImage<'a> {
 
     /// how to verify a signature against its binary
     /// refer from microsoft authenticode_pe.docx
-    pub fn verify(&self) -> Result<()> {
+    pub fn verify(&self, cas: Vec<String>) -> Result<()> {
+        let mut ca_names: Vec<Cert> = Vec::new();
+
+        for p in cas.iter() {
+            ca_names.push(
+                Cert::from_pem_str(
+                    &String::from_utf8(read(PathBuf::from(p)).context(ReadFileSnafu { path: p })?)
+                        .context(PemDecodeFromUTF8Snafu {})?,
+                )
+                .context(CertDecodeSnafu {})?,
+            );
+        }
+
+        let cas = ca_names.iter().map(|c| c.issuer_name()).collect::<Vec<_>>();
+        let ctl = ctl::CertificateTrustList::fetch().context(CtlFetchSnafu {})?;
         // extracting and verify pkcs #7
         // certificate processing
         // timestamp processing
@@ -886,13 +902,14 @@ impl<'a> EfiImage<'a> {
             let verfier: picky::x509::pkcs7::authenticode::AuthenticodeValidator =
                 code.authenticode_verifier();
             verfier
+                .ctl(&ctl)
                 .require_basic_authenticode_validation(file_hash.clone())
                 .require_not_after_check()
                 .require_not_before_check()
+                .require_ca_against_ctl_check()
                 .exact_date(&now)
-                .ignore_chain_check()
-                .ignore_ca_against_ctl_check(); // we just ignore ctl check as picky not support set a user provided cert as trust anchor
-            verfier.verify().context(AuthenticodeSnafu {})?;
+                .exclude_cert_authorities(&cas);
+            verfier.verify().context(AuthenticodeVerifySnafu {})?;
         }
 
         Ok(())

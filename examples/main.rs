@@ -32,14 +32,7 @@ struct Cli {
     #[command(subcommand)]
     command: Commands,
     #[arg(short, long)]
-    #[arg(help = "print more info")]
-    verbose: bool,
-}
-
-#[derive(Args)]
-struct CliArgs {
-    #[arg(short, long)]
-    #[arg(help = "print more info")]
+    #[arg(help = "Print more info")]
     verbose: bool,
 }
 
@@ -55,9 +48,9 @@ enum Commands {
 
 #[derive(Args)]
 struct P7b {
-    #[arg(help = "pem cert to convert")]
+    #[arg(help = "PEM cert to convert")]
     path: String,
-    #[arg(help = "p7b output file path")]
+    #[arg(help = "PKCS7 output file path")]
     output: String,
 }
 
@@ -65,15 +58,18 @@ struct P7b {
 struct Parse {
     #[arg(help = "EFI image path to parse")]
     path: String,
+    #[arg(short, long, action(clap::ArgAction::Append))]
+    #[arg(help = "Certificate to verify the signatures in the EFI image")]
+    certs: Option<Vec<String>>,
 }
 
 #[derive(Args)]
 struct Sign {
     #[arg(long, short, required(true))]
-    #[arg(help = "private key in p7b format")]
+    #[arg(help = "Private key in p7b format")]
     key: String,
     #[arg(long, short, required(true))]
-    #[arg(help = "certificate in pem format")]
+    #[arg(help = "Certificate in PEM format")]
     cert: String,
     #[arg(help = "EFI image path to sign")]
     path: String,
@@ -118,10 +114,16 @@ fn sign(path: &str, output: &str, key: &str, cert: &str) {
     file.write_all(&sig).unwrap();
 }
 
-fn parse(path: &str) {
+fn parse(path: &str, certs: Option<Vec<String>>) {
     let buf = read(path).unwrap();
     let pe = efi_signer::EfiImage::parse(&buf).unwrap();
 
+    if let Some(paths) = certs {
+        match pe.verify(paths) {
+            Ok(_) => println!("verify: Ok"),
+            Err(e) => println!("verify: Failed(reason: {})", e),
+        }
+    }
     pe.print_info().unwrap();
 }
 
@@ -135,7 +137,7 @@ fn main() {
     env_logger::init();
 
     match app.command {
-        Commands::Parse(p) => parse(&p.path),
+        Commands::Parse(p) => parse(&p.path, p.certs),
         Commands::Sign(s) => sign(&s.path, &s.output, &s.key, &s.cert),
         Commands::P7b(p) => p7b(&p.path, &p.output),
     }

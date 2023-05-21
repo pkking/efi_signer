@@ -1,3 +1,6 @@
+use std::path::PathBuf;
+use std::str::FromStr;
+
 pub fn init() {
     let _ = env_logger::builder().is_test(true).try_init();
 }
@@ -79,4 +82,92 @@ fn test_get_cert_table_non() {
     let pe = efi_signer::EfiImage::parse(efi_buf).unwrap();
 
     assert!(pe.signatures.is_empty());
+}
+
+#[test]
+fn test_verify_non_sig() {
+    init();
+    let efi_buf = include_bytes!("./shimx64.efi");
+    let pe = efi_signer::EfiImage::parse(efi_buf).unwrap();
+
+    let paths = vec!["./tests/certificate.pem".to_string()];
+    match pe.verify(paths) {
+        Ok(_) => panic!("we should failed"),
+        Err(e) => assert_eq!(e.to_string(), "No digest algorithm existed".to_string()),
+    }
+}
+
+#[test]
+fn test_verify_sig() {
+    init();
+    let buf = include_bytes!("./shimx64.efi");
+    let pe = efi_signer::EfiImage::parse(buf).unwrap();
+
+    let sig = pe
+        .sign_signature(
+            PathBuf::from_str("./tests/certificate.p7b").unwrap(),
+            PathBuf::from_str("./tests/key.pem").unwrap(),
+            None,
+            efi_signer::DigestAlgorithm::Sha256,
+        )
+        .unwrap();
+
+    let new_pe = efi_signer::EfiImage::parse(&sig).unwrap();
+    let paths = vec!["./tests/certificate.pem".to_string()];
+    assert!(new_pe.verify(paths).is_ok(), "verify should not failed");
+}
+
+#[test]
+fn test_verify_non_existed_cert() {
+    init();
+    let efi_buf = include_bytes!("./shimx64.efi");
+    let pe = efi_signer::EfiImage::parse(efi_buf).unwrap();
+
+    let paths = vec!["./tests/no_such.pem".to_string()];
+    match pe.verify(paths) {
+        Ok(_) => panic!("we should failed"),
+        Err(e) => assert_eq!(
+            e.to_string(),
+            "Failed to read file ./tests/no_such.pem".to_string()
+        ),
+    }
+}
+
+#[test]
+fn test_verify_invalid_cert() {
+    init();
+    let efi_buf = include_bytes!("./shimx64.efi");
+    let pe = efi_signer::EfiImage::parse(efi_buf).unwrap();
+
+    let paths = vec!["./tests/key.pem".to_string()];
+    match pe.verify(paths) {
+        Ok(_) => panic!("we should failed"),
+        Err(e) => assert_eq!(
+            e.to_string(),
+            "Failed to decode a pem cert into Cert struct".to_string()
+        ),
+    }
+}
+
+#[test]
+fn test_verify_wrong_cert() {
+    init();
+    let buf = include_bytes!("./shimx64.efi");
+    let pe = efi_signer::EfiImage::parse(buf).unwrap();
+
+    let sig = pe
+        .sign_signature(
+            PathBuf::from_str("./tests/certificate.p7b").unwrap(),
+            PathBuf::from_str("./tests/key.pem").unwrap(),
+            None,
+            efi_signer::DigestAlgorithm::Sha256,
+        )
+        .unwrap();
+
+    let new_pe = efi_signer::EfiImage::parse(&sig).unwrap();
+    let paths = vec!["./tests/wrong_cert.pem".to_string()];
+    match new_pe.verify(paths) {
+        Ok(_) => panic!("we should failed"),
+        Err(e) => assert_eq!(e.to_string(), "Failed to verify a authenticode".to_string()),
+    }
 }
