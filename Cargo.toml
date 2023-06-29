@@ -1,6 +1,6 @@
 [package]
 name = "efi_signer"
-version = "0.2.3"
+version = "0.2.4"
 edition = "2021"
 authors = ["Li Chaoran <pkwarcraft@gmail.com>"]
 description = "A crates for signing and parsing EFI image"

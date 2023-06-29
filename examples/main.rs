@@ -71,9 +71,12 @@ struct Sign {
     #[arg(long, short, required(true))]
     #[arg(help = "Certificate in PEM format")]
     cert: String,
+    #[arg(long, short, required(false))]
+    #[arg(help = "Whether to generate a detach signature")]
+    detach: bool,
     #[arg(help = "EFI image path to sign")]
     path: String,
-    #[arg(help = "EFI image path to sign")]
+    #[arg(help = "Signed EFI image path")]
     output: String,
 }
 
@@ -90,11 +93,32 @@ fn p7b(path: &str, output: &str) {
     file.write_all(&p7).unwrap();
 }
 
-fn sign(path: &str, output: &str, key: &str, cert: &str) {
+fn sign(path: &str, output: &str, key: &str, cert: &str, detach: bool) {
     let buf = read(path).unwrap();
     let pe = efi_signer::EfiImage::parse(&buf).unwrap();
 
     pe.print_info().unwrap();
+
+    if detach {
+        let key_pem = read(key).unwrap();
+        let cert_pem = read(cert).unwrap();
+
+        let file_hash = pe.compute_digest(DigestAlgorithm::Sha256).unwrap();
+
+        let signature = efi_signer::EfiImage::do_sign_signature(
+            file_hash.to_vec(),
+            cert_pem,
+            key_pem,
+            None,
+            DigestAlgorithm::Sha256,
+        )
+        .unwrap();
+
+        let mut f = std::fs::File::create(output).unwrap();
+        f.write_all(&signature.encode().unwrap()).unwrap();
+
+        return;
+    }
 
     let sig = pe
         .sign_signature(
@@ -138,7 +162,7 @@ fn main() {
 
     match app.command {
         Commands::Parse(p) => parse(&p.path, p.certs),
-        Commands::Sign(s) => sign(&s.path, &s.output, &s.key, &s.cert),
+        Commands::Sign(s) => sign(&s.path, &s.output, &s.key, &s.cert, s.detach),
         Commands::P7b(p) => p7b(&p.path, &p.output),
     }
 }

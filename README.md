@@ -21,6 +21,11 @@ see [examples](./examples/main.rs)
     ./main sign --key key.pem --cert certificate.pem shimx64.efi shimx64.efi.signed
     ```
 
+1. sign a EFI image with detached signature
+    ```bash
+    ./main sign --key key.pem --cert certificate.pem -d shimx64.efi efi.signed
+    ```
+    the `efi.signed` file will onlyl contain the signature itself which can be used by [set_authenticode](https://docs.rs/efi_signer/latest/efi_signer/struct.EfiImage.html#method.set_authenticode)
 ## how to parse the EFI image
 ```bash
 ./main --verbose parse shimx64.efi
