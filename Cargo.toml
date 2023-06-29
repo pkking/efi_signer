@@ -1,6 +1,6 @@
 [package]
 name = "efi_signer"
-version = "0.2.2"
+version = "0.2.3"
 edition = "2021"
 authors = ["Li Chaoran <pkwarcraft@gmail.com>"]
 description = "A crates for signing and parsing EFI image"
@@ -11,6 +11,7 @@ readme = "README.md"
 
 [dependencies]
 byteorder = "1.4.3"
+cms = { version = "0.2.1", features = ["pem"] }
 der = "0.7.2"
 digest = "0.10.6"
 goblin = "0.6.1"

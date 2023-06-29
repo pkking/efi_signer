@@ -13,6 +13,7 @@
  *  * // See the Mulan PSL v2 for more details.
  *
  */
+use der::Error as DerError;
 use goblin::error::Error as PeError;
 use picky::key::KeyError;
 use picky::pem::PemError;
@@ -92,10 +93,10 @@ pub(crate) enum InnerError {
     NoDigestAlgo {},
     #[snafu(display("Not supported algorithm"))]
     NotSupportedAlgo {},
-    #[snafu(display("Failed to convert a pem cert to PKCS7 format: {reason}"))]
-    ConvertPEM2PKCS7 { reason: String },
     #[snafu(display("Failed to decode a pem cert into Cert struct"))]
     CertDecode { source: CertError },
     #[snafu(display("Failed to decode PEM from utf8 str"))]
     PemDecodeFromUTF8 { source: FromUtf8Error },
+    #[snafu(display("Failed to convert a pem cert to PKCS7 format"))]
+    ConvertPEM2PKCS7 { source: DerError },
 }

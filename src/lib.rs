@@ -23,7 +23,8 @@ use crate::error::{
     ReadBtyeSnafu, ReadLeftDataSnafu, Result, WinCertSnafu, WriteBtyeSnafu,
 };
 use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
-use core::slice;
+use der::{DecodePem, Encode};
+
 use digest::DynDigest;
 use error::{AuthenticodeVerifySnafu, CtlFetchSnafu, PemDecodeFromUTF8Snafu, ReadFileSnafu};
 use goblin::pe::data_directories::SIZEOF_DATA_DIRECTORY;
@@ -37,11 +38,6 @@ use goblin::pe::{data_directories::DataDirectory, PE};
 use log::{debug, warn};
 use picky::x509::Cert;
 
-use openssl_sys::{
-    c_void, BIO_get_mem_data, BIO_new, BIO_new_mem_buf, BIO_s_mem, NID_pkcs7_data,
-    NID_pkcs7_signed, PEM_read_bio_X509, PEM_write_bio_PKCS7, PKCS7_add_certificate,
-    PKCS7_content_new, PKCS7_new, PKCS7_set_type,
-};
 use picky::key::PrivateKey;
 use picky::pem::Pem;
 use picky::x509::date::UtcDate;
@@ -50,12 +46,14 @@ use picky::x509::pkcs7::{ctl, ctl::http_fetch::CtlHttpFetch, Pkcs7};
 use picky::x509::wincert::{CertificateType, WinCertificate};
 
 use snafu::{OptionExt, ResultExt};
+
+use cms::content_info::ContentInfo;
+
 use std::fmt::Display;
 use std::fs::{read, File};
 use std::io::{BufRead, BufReader, Cursor};
 use std::mem;
 use std::path::{Path, PathBuf};
-use std::ptr::null_mut;
 use std::str;
 
 pub mod error;
@@ -69,7 +67,7 @@ pub struct Section {
     pub data: Vec<u8>,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, Copy)]
 pub enum DigestAlgorithm {
     Sha1,
     Sha256,
@@ -85,6 +83,18 @@ impl TryFrom<ShaVariant> for DigestAlgorithm {
             ShaVariant::SHA1 => Ok(DigestAlgorithm::Sha1),
             ShaVariant::SHA2_256 => Ok(DigestAlgorithm::Sha256),
             _ => NoDigestAlgoSnafu.fail()?,
+        }
+    }
+}
+
+impl TryFrom<DigestAlgorithm> for ShaVariant {
+    type Error = error::Error;
+
+    fn try_from(value: DigestAlgorithm) -> Result<ShaVariant> {
+        match value {
+            DigestAlgorithm::MD5 => Ok(ShaVariant::MD5),
+            DigestAlgorithm::Sha1 => Ok(ShaVariant::SHA1),
+            DigestAlgorithm::Sha256 => Ok(ShaVariant::SHA2_256),
         }
     }
 }
@@ -230,71 +240,20 @@ impl<'a> EfiImage<'a> {
     /// file.write_all(&p7).unwrap();
     /// ```
     pub fn pem_to_p7(buf: &[u8]) -> Result<Vec<u8>> {
-        unsafe {
-            let p7 = PKCS7_new();
-            if p7.is_null() {
-                return ConvertPEM2PKCS7Snafu {
-                    reason: "failed to init a new PKCS7 struct",
-                }
-                .fail()?;
-            }
-
-            if PKCS7_set_type(p7, NID_pkcs7_signed) == 0 {
-                return ConvertPEM2PKCS7Snafu {
-                    reason: "failed to PKCS7_set_type",
-                }
-                .fail()?;
-            }
-
-            if PKCS7_content_new(p7, NID_pkcs7_data) == 0 {
-                return ConvertPEM2PKCS7Snafu {
-                    reason: "failed to PKCS7_content_new",
-                }
-                .fail()?;
-            }
-
-            let b = BIO_new_mem_buf(buf.as_ptr() as *const c_void, buf.len() as i32);
-            if b.is_null() {
-                return ConvertPEM2PKCS7Snafu {
-                    reason: "failed to create bio buffer",
-                }
-                .fail()?;
-            }
-
-            let x509 = PEM_read_bio_X509(b, null_mut(), None, null_mut());
-            if x509.is_null() {
-                return ConvertPEM2PKCS7Snafu {
-                    reason: "failed to read x509 from buffer",
-                }
-                .fail()?;
-            }
-
-            if PKCS7_add_certificate(p7, x509) == 0 {
-                return ConvertPEM2PKCS7Snafu {
-                    reason: "failed to add cert",
-                }
-                .fail()?;
-            }
-
-            let out = BIO_new(BIO_s_mem());
-            if out.is_null() {
-                return ConvertPEM2PKCS7Snafu {
-                    reason: "failed to create output buffer",
-                }
-                .fail()?;
-            }
-
-            if PEM_write_bio_PKCS7(out, p7) == 0 {
-                return ConvertPEM2PKCS7Snafu {
-                    reason: "failed to write pkcs7 back to buffer",
-                }
-                .fail()?;
-            }
-
-            let mut ptr = null_mut();
-            let len = BIO_get_mem_data(out, &mut ptr);
-            Ok(slice::from_raw_parts(ptr as *const _ as *const _, len as usize).to_vec())
-        }
+        let pem = x509_cert::Certificate::from_pem(buf).context(ConvertPEM2PKCS7Snafu {})?;
+        // this method will result a slight difference p7b cert compared using openssl
+        // see: https://github.com/RustCrypto/formats/issues/1030
+        let p7b_der = ContentInfo::try_from(pem)
+            .context(ConvertPEM2PKCS7Snafu {})?
+            .to_der()
+            .context(ConvertPEM2PKCS7Snafu {})?;
+        let p7 = Pkcs7::from_der(&p7b_der).context(ParseCertificateSnafu {})?;
+        Ok(p7
+            .to_pem()
+            .context(ParseCertificateSnafu {})?
+            .to_string()
+            .as_bytes()
+            .to_vec())
     }
 
     fn check_sum(mut checksum: u32, data: &[u8], mut steps: usize) -> Result<u32> {
@@ -380,6 +339,7 @@ impl<'a> EfiImage<'a> {
         certfile: Vec<u8>,    // pem in utf-8
         private_key: Vec<u8>, // pem in utf-8
         program_name: Option<String>,
+        alog: DigestAlgorithm,
     ) -> Result<Signature> {
         let pkey =
             PrivateKey::from_pem_str(str::from_utf8(&private_key).context(PemDecodeSnafu {})?)
@@ -390,7 +350,7 @@ impl<'a> EfiImage<'a> {
         let authenticode_signature = AuthenticodeSignature::new(
             &pkcs7,
             file_hash.to_vec(),
-            ShaVariant::SHA2_256,
+            alog.try_into()?,
             &pkey,
             program_name,
         )
@@ -920,14 +880,15 @@ impl<'a> EfiImage<'a> {
         certfile: PathBuf,
         private_key: PathBuf,
         program_name: Option<String>,
-        mut algo: DigestAlgorithm,
+        algo: DigestAlgorithm,
     ) -> Result<Vec<u8>> {
+        let mut real_alog = algo;
         if let Some(a) = self.get_digest_algo()? {
             warn!(
                 "a digest algorithm:{} already existed, ignore input args {}",
-                a, algo
+                a, &algo
             );
-            algo = a;
+            real_alog = a;
         }
 
         let key_pem = EfiImage::get_pem_from_file(&private_key)?;
@@ -940,6 +901,7 @@ impl<'a> EfiImage<'a> {
             cert_pem.to_string().into_bytes(),
             key_pem.to_string().into_bytes(),
             program_name,
+            real_alog,
         )?;
         self.set_authenticode(vec![signature])
     }
