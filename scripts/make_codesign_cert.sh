@@ -8,11 +8,19 @@
 set -o pipefail
 [ `which openssl 2>/dev/null` ] || (echo "please install openssl firstly"; exit 1)
 
-# generate a ecc key
-openssl genrsa -out key.pem 4096
-# generate a csr
-openssl req -new -sha256 -key key.pem -out csr.csr -subj '/CN=efiSigner/C=CN/OU=openEuler/O=infra'
-# sign a certificate
-openssl req -x509 -sha256 -days 365 -key key.pem -in csr.csr -out certificate.pem -subj '/CN=efiSigner/C=CN/OU=openEuler/O=infra' -addext "extendedKeyUsage = 1.3.6.1.5.5.7.3.3"
+# generate a rsa key
+openssl genrsa -out ca.key 4096
+# generate a csr for rootca
+openssl req -new -sha256 -key ca.key -out ca.csr -subj '/CN=efiRoot/C=CN/OU=openEuler/O=infra'
+# sign the rootca
+openssl req -x509 -sha256 -days 3650 -key ca.key -in ca.csr -out rootca.pem -subj '/CN=efiRoot/C=CN/OU=openEuler/O=infra'
+# generate a sign cert
+# key first
+openssl genrsa -out signer.key 4096
+# csr for sign cert
+openssl req -new -sha256 -key signer.key -out signer.csr -subj '/CN=efiSigner/C=CN/OU=openEuler/O=infra'
+# sign
+openssl x509 -req -in signer.csr -CA rootca.pem -CAkey ca.key -CAcreateserial -out signer.pem
 # convert x509 to pkcs7
-openssl crl2pkcs7 -nocrl -certfile certificate.pem -out certificate.p7b
+openssl crl2pkcs7 -nocrl -certfile signer.pem -out signer.p7b
+

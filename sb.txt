@@ -1,0 +1,345 @@
+[2023-11-04T12:44:31Z DEBUG goblin::pe] Header {
+        dos_header: DosHeader {
+            signature: 23117,
+            pe_pointer: 128,
+        },
+        signature: 17744,
+        coff_header: CoffHeader {
+            machine: 34404,
+            number_of_sections: 10,
+            time_date_stamp: 0,
+            pointer_to_symbol_table: 809984,
+            number_of_symbol_table: 3673,
+            size_of_optional_header: 240,
+            characteristics: 518,
+        },
+        optional_header: Some(
+            OptionalHeader {
+                standard_fields: StandardFields {
+                    magic: 523,
+                    major_linker_version: 2,
+                    minor_linker_version: 40,
+                    size_of_code: 385536,
+                    size_of_initialized_data: 423424,
+                    size_of_uninitialized_data: 0,
+                    address_of_entry_point: 143360,
+                    base_of_code: 143360,
+                    base_of_data: 0,
+                },
+                windows_fields: WindowsFields64 {
+                    image_base: 0,
+                    section_alignment: 4096,
+                    file_alignment: 512,
+                    major_operating_system_version: 0,
+                    minor_operating_system_version: 0,
+                    major_image_version: 0,
+                    minor_image_version: 0,
+                    major_subsystem_version: 0,
+                    minor_subsystem_version: 0,
+                    win32_version_value: 0,
+                    size_of_image: 864256,
+                    size_of_headers: 1024,
+                    check_sum: 986692,
+                    subsystem: 10,
+                    dll_characteristics: 0,
+                    size_of_stack_reserve: 0,
+                    size_of_stack_commit: 0,
+                    size_of_heap_reserve: 0,
+                    size_of_heap_commit: 0,
+                    loader_flags: 0,
+                    number_of_rva_and_sizes: 16,
+                },
+                data_directories: DataDirectories {
+                    data_directories: [
+                        None,
+                        None,
+                        None,
+                        None,
+                        Some(
+                            DataDirectory {
+                                virtual_address: 935960,
+                                size: 2360,
+                            },
+                        ),
+                        Some(
+                            DataDirectory {
+                                virtual_address: 532480,
+                                size: 10,
+                            },
+                        ),
+                        None,
+                        None,
+                        None,
+                        None,
+                        None,
+                        None,
+                        None,
+                        None,
+                        None,
+                        None,
+                    ],
+                },
+            },
+        ),
+    }
+[2023-11-04T12:44:31Z DEBUG goblin::pe::header] (0) SectionTable {
+        name: [
+            47,
+            52,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+        ],
+        real_name: Some(
+            ".eh_frame",
+        ),
+        virtual_size: 121228,
+        virtual_address: 20480,
+        size_of_raw_data: 121344,
+        pointer_to_raw_data: 1024,
+        pointer_to_relocations: 0,
+        pointer_to_linenumbers: 0,
+        number_of_relocations: 0,
+        number_of_linenumbers: 0,
+        characteristics: 1073741888,
+    }
+[2023-11-04T12:44:31Z DEBUG goblin::pe::header] (1) SectionTable {
+        name: [
+            46,
+            116,
+            101,
+            120,
+            116,
+            0,
+            0,
+            0,
+        ],
+        real_name: None,
+        virtual_size: 385284,
+        virtual_address: 143360,
+        size_of_raw_data: 385536,
+        pointer_to_raw_data: 122368,
+        pointer_to_relocations: 0,
+        pointer_to_linenumbers: 0,
+        number_of_relocations: 0,
+        number_of_linenumbers: 0,
+        characteristics: 1610612768,
+    }
+[2023-11-04T12:44:31Z DEBUG goblin::pe::header] (2) SectionTable {
+        name: [
+            46,
+            114,
+            101,
+            108,
+            111,
+            99,
+            0,
+            0,
+        ],
+        real_name: None,
+        virtual_size: 10,
+        virtual_address: 532480,
+        size_of_raw_data: 512,
+        pointer_to_raw_data: 507904,
+        pointer_to_relocations: 0,
+        pointer_to_linenumbers: 0,
+        number_of_relocations: 0,
+        number_of_linenumbers: 0,
+        characteristics: 1107296320,
+    }
+[2023-11-04T12:44:31Z DEBUG goblin::pe::header] (3) SectionTable {
+        name: [
+            47,
+            49,
+            52,
+            0,
+            0,
+            0,
+            0,
+            0,
+        ],
+        real_name: Some(
+            ".data.ident",
+        ),
+        virtual_size: 100,
+        virtual_address: 540672,
+        size_of_raw_data: 512,
+        pointer_to_raw_data: 508416,
+        pointer_to_relocations: 0,
+        pointer_to_linenumbers: 0,
+        number_of_relocations: 0,
+        number_of_linenumbers: 0,
+        characteristics: 3221225536,
+    }
+[2023-11-04T12:44:31Z DEBUG goblin::pe::header] (4) SectionTable {
+        name: [
+            47,
+            50,
+            54,
+            0,
+            0,
+            0,
+            0,
+            0,
+        ],
+        real_name: Some(
+            ".sbatlevel",
+        ),
+        virtual_size: 71,
+        virtual_address: 544768,
+        size_of_raw_data: 512,
+        pointer_to_raw_data: 508928,
+        pointer_to_relocations: 0,
+        pointer_to_linenumbers: 0,
+        number_of_relocations: 0,
+        number_of_linenumbers: 0,
+        characteristics: 1073741888,
+    }
+[2023-11-04T12:44:31Z DEBUG goblin::pe::header] (5) SectionTable {
+        name: [
+            46,
+            100,
+            97,
+            116,
+            97,
+            0,
+            0,
+            0,
+        ],
+        real_name: None,
+        virtual_size: 186036,
+        virtual_address: 548864,
+        size_of_raw_data: 186368,
+        pointer_to_raw_data: 509440,
+        pointer_to_relocations: 0,
+        pointer_to_linenumbers: 0,
+        number_of_relocations: 0,
+        number_of_linenumbers: 0,
+        characteristics: 3221225536,
+    }
+[2023-11-04T12:44:31Z DEBUG goblin::pe::header] (6) SectionTable {
+        name: [
+            47,
+            51,
+            55,
+            0,
+            0,
+            0,
+            0,
+            0,
+        ],
+        real_name: Some(
+            ".vendor_cert",
+        ),
+        virtual_size: 16,
+        virtual_address: 737280,
+        size_of_raw_data: 512,
+        pointer_to_raw_data: 695808,
+        pointer_to_relocations: 0,
+        pointer_to_linenumbers: 0,
+        number_of_relocations: 0,
+        number_of_linenumbers: 0,
+        characteristics: 1073741888,
+    }
+[2023-11-04T12:44:31Z DEBUG goblin::pe::header] (7) SectionTable {
+        name: [
+            46,
+            100,
+            121,
+            110,
+            97,
+            109,
+            105,
+            99,
+        ],
+        real_name: None,
+        virtual_size: 240,
+        virtual_address: 741376,
+        size_of_raw_data: 512,
+        pointer_to_raw_data: 696320,
+        pointer_to_relocations: 0,
+        pointer_to_linenumbers: 0,
+        number_of_relocations: 0,
+        number_of_linenumbers: 0,
+        characteristics: 3221225536,
+    }
+[2023-11-04T12:44:31Z DEBUG goblin::pe::header] (8) SectionTable {
+        name: [
+            46,
+            114,
+            101,
+            108,
+            97,
+            0,
+            0,
+            0,
+        ],
+        real_name: None,
+        virtual_size: 112248,
+        virtual_address: 745472,
+        size_of_raw_data: 112640,
+        pointer_to_raw_data: 696832,
+        pointer_to_relocations: 0,
+        pointer_to_linenumbers: 0,
+        number_of_relocations: 0,
+        number_of_linenumbers: 0,
+        characteristics: 1073741888,
+    }
+[2023-11-04T12:44:31Z DEBUG goblin::pe::header] (9) SectionTable {
+        name: [
+            46,
+            115,
+            98,
+            97,
+            116,
+            0,
+            0,
+            0,
+        ],
+        real_name: None,
+        virtual_size: 131,
+        virtual_address: 860160,
+        size_of_raw_data: 512,
+        pointer_to_raw_data: 809472,
+        pointer_to_relocations: 0,
+        pointer_to_linenumbers: 0,
+        number_of_relocations: 0,
+        number_of_linenumbers: 0,
+        characteristics: 1073741888,
+    }
+[2023-11-04T12:44:31Z DEBUG goblin::pe] entry 0x23000 image_base 0x0 is_64: true
+[2023-11-04T12:44:31Z DEBUG goblin::pe] exports: []
+[2023-11-04T12:44:31Z DEBUG goblin::pe] imports: []
+[2023-11-04T12:44:31Z DEBUG goblin::pe] exception data: None
+[2023-11-04T12:44:31Z DEBUG efi_signer] cert data in wincert struct: [30, 82, 9, 2a, 6, 9, 2a, 86, 48, 86, f7, d, 1, 7, 2, a0, 82, 9, 1b, 30, 82, 9, 17, 2, 1, 1, 31, f, 30, d, 6, 9, 60, 86, 48, 1, 65, 3, 4, 2, 1, 5, 0, 30, 78, 6, a, 2b, 6, 1, 4, 1, 82, 37, 2, 1, 4, a0, 6a, 30, 68, 30, 33, 6, a, 2b, 6, 1, 4, 1, 82, 37, 2, 1, f, 30, 25, 3, 1, 0, a0, 20, a2, 1e, 80, 1c, 0, 3c, 0, 3c, 0, 3c, 0, 4f, 0, 62, 0, 73, 0, 6f, 0, 6c, 0, 65, 0, 74, 0, 65, 0, 3e, 0, 3e, 0, 3e, 30, 31, 30, d, 6, 9, 60, 86, 48, 1, 65, 3, 4, 2, 1, 5, 0, 4, 20, af, ba, 82, 33, 9b, a4, b7, 21, 3e, 7b, bf, a9, 75, 25, 12, 80, c0, 3e, 6c, dd, fa, ce, 26, 7c, c5, be, b9, ad, fc, 53, 2d, 3a, a0, 82, 5, 13, 30, 82, 5, f, 30, 82, 2, f7, 2, 14, 7d, 6c, cb, ef, ec, b7, 25, 66, 1c, f2, 33, 42, 8b, a1, 95, a4, 3, eb, 5f, c4, 30, d, 6, 9, 2a, 86, 48, 86, f7, d, 1, 1, b, 5, 0, 30, 43, 31, 10, 30, e, 6, 3, 55, 4, 3, c, 7, 65, 66, 69, 52, 6f, 6f, 74, 31, b, 30, 9, 6, 3, 55, 4, 6, 13, 2, 43, 4e, 31, 12, 30, 10, 6, 3, 55, 4, b, c, 9, 6f, 70, 65, 6e, 45, 75, 6c, 65, 72, 31, e, 30, c, 6, 3, 55, 4, a, c, 5, 69, 6e, 66, 72, 61, 30, 1e, 17, d, 32, 33, 31, 31, 30, 34, 31, 31, 32, 30, 34, 34, 5a, 17, d, 32, 33, 31, 32, 30, 34, 31, 31, 32, 30, 34, 34, 5a, 30, 45, 31, 12, 30, 10, 6, 3, 55, 4, 3, c, 9, 65, 66, 69, 53, 69, 67, 6e, 65, 72, 31, b, 30, 9, 6, 3, 55, 4, 6, 13, 2, 43, 4e, 31, 12, 30, 10, 6, 3, 55, 4, b, c, 9, 6f, 70, 65, 6e, 45, 75, 6c, 65, 72, 31, e, 30, c, 6, 3, 55, 4, a, c, 5, 69, 6e, 66, 72, 61, 30, 82, 2, 22, 30, d, 6, 9, 2a, 86, 48, 86, f7, d, 1, 1, 1, 5, 0, 3, 82, 2, f, 0, 30, 82, 2, a, 2, 82, 2, 1, 0, b1, 5, f7, cb, 13, b4, a6, 8, f5, a0, a, 84, dd, d6, a8, f5, c9, 84, 6d, 2, 8e, b0, a9, 5e, 1d, 50, 6f, 61, 54, 98, a8, c4, b4, fc, ec, e8, 81, 9f, 26, 31, 23, 8, 5d, 72, 21, 24, 61, 8b, 32, a5, 8a, af, 81, d9, b7, 3c, b6, 15, d1, 60, 3, ea, 1a, 62, 44, de, bb, 95, 3e, 2d, 37, 21, a8, 6e, 49, 39, d0, 7, 7a, 4f, a7, f0, 38, b4, 24, f4, 7a, 3e, e3, 61, df, ec, 87, cc, 81, a9, a9, 2c, 2d, 6c, 32, c1, fc, e8, bb, d8, 59, 23, b1, b7, 8f, 71, 3d, 4c, 61, cd, ac, 71, 8d, a6, 8f, 42, e3, 11, d3, d2, 76, 2a, 2, f0, cb, a2, cd, 9b, e3, fb, e7, a1, cf, a2, b2, 45, e5, 2e, c2, 39, 7d, c0, 97, 62, 57, e5, 7c, ff, bd, 2a, 35, aa, 4d, 1d, b9, 22, 88, 1c, de, b9, b3, 1a, aa, a1, 21, ab, 9e, a6, ff, 92, c, 53, f3, c9, 67, 92, 74, cd, 91, 3f, e6, 9c, d3, 51, 4d, dc, 1a, 93, 13, c5, 64, fc, 33, 38, 12, be, d9, 2f, 8, 18, 60, b8, 6a, 21, 8f, 5, 42, 1c, 8d, 14, 6f, 9f, dd, 4, 51, 92, 79, e5, 3a, 74, d8, c, 4c, bf, ee, 5a, b8, 33, 2b, b0, c0, 68, 3a, 43, 17, 25, 39, c5, a6, 1c, de, 58, c9, 7a, cb, 31, 51, 1d, 8a, bf, 21, e3, fe, 3a, 6e, a0, 13, 71, 26, fe, a1, 23, 35, cc, 76, f, 89, ac, 47, 4a, b6, d4, e8, 14, 9f, c3, 21, 9d, 7c, 8e, df, 16, 6f, e2, 2f, 62, 3b, f, 7a, ab, 3a, 1a, f6, b6, b1, 24, 6a, 12, f4, f2, a9, 45, 2d, c7, de, cb, af, 61, 9d, b1, ba, 89, 61, 3a, d, bb, 44, fe, be, f9, 8d, 15, a, 63, ed, 0, 9, ab, c, 38, cb, 97, ae, 74, 42, 17, df, b0, 88, f3, 6c, d5, 9d, 38, ea, a3, 9a, 69, fd, d0, 18, 75, 77, c2, 7e, 39, a8, 27, e0, 99, 12, b, a5, 8a, 84, 51, c2, 2c, c2, 58, 28, 89, 4b, a4, 55, 0, 10, 17, 3e, 85, 1c, 90, e2, ee, e1, 64, 13, 2d, 13, 5e, 66, c3, 65, a4, c4, 67, fc, b2, f, 1b, fa, ab, a, 48, fa, 8e, a5, b9, e9, df, 64, 34, 5e, fc, 31, 7e, 88, 3d, 98, e4, 98, 4, a8, d7, 88, 1e, b8, f5, 12, 72, 86, f2, e6, e9, d4, f6, ce, 6d, 41, bd, e5, 48, 3d, 2f, 34, ca, 9e, bb, 9c, 3c, 55, dd, 58, 50, 5d, 4c, 6d, 2, f4, 57, 8b, 84, 18, 9a, d, 61, db, 52, 5, b, ae, a6, 66, ab, 87, 84, 45, 59, 37, 7, 8d, a5, 6b, 45, 31, b1, 44, 99, ce, ea, a5, c8, c3, a1, 85, d9, c1, cc, 41, 31, 7d, 54, c2, 89, e2, 3f, 2, 3, 1, 0, 1, 30, d, 6, 9, 2a, 86, 48, 86, f7, d, 1, 1, b, 5, 0, 3, 82, 2, 1, 0, 29, cd, 57, 5, ab, d5, e1, 83, 71, 7d, 21, 5e, ef, bb, fa, 4, d8, 44, b7, 93, 3d, 11, 0, c2, 10, 3a, 3b, b5, 3f, a4, c0, 1, f3, c4, a6, 3e, e7, 44, 43, 35, e3, e5, 88, 5f, d6, 91, 1b, 3, d9, 9e, 57, 23, 13, c2, b4, 49, 98, df, 2b, bf, 5d, 84, ce, 53, 28, ab, 31, 68, b2, d0, 7c, d0, b2, e8, e8, 75, 56, 6f, b3, bf, e, 12, 3d, f9, 85, ac, 70, 32, 8e, 3d, c5, ec, 3a, 33, 22, 0, a2, ef, 9e, 5b, cb, b, 4f, b5, 76, 97, 2d, 7, c9, 83, 59, ce, dd, f4, 43, 70, 5c, 9, af, 6d, d5, 74, e8, d0, 6b, 7c, a2, bd, 79, 87, 41, c8, dd, e9, c4, b5, e3, f6, d0, 27, 30, e8, 9b, c3, 1d, 22, 69, 57, f5, 4, 8c, ab, ab, e8, 2b, 90, 67, 94, bf, ad, 4d, fe, a, 8b, 8e, 7b, c0, b2, 2c, 86, 7c, 75, a8, 67, 54, ed, 51, 1b, 80, 96, 56, b6, 40, fc, 3c, 11, b7, 45, 30, b2, 53, 4f, 49, 7b, 61, 97, f1, 92, 7b, 3a, 7e, 1e, e1, 8a, a, cf, 1a, 8, 59, fd, 7b, 26, 3b, 3c, 54, 69, 7f, 5b, 8b, c8, e, 6f, 52, 59, f9, 3f, b2, e6, 31, d5, 4c, 95, d5, 9f, c2, 7b, 86, 38, 31, 27, de, e1, 46, 7c, df, 7f, 6a, a6, 73, e, 3, 13, c1, ac, 83, 45, 2a, 2e, f9, 28, a5, 9a, f5, fc, f1, 46, e0, cf, 52, 8a, 5e, 9c, 95, a7, 68, f, 16, fa, 54, a1, 9b, a1, 2b, 44, 92, f0, c0, 82, a3, 32, 5f, 62, 9, c0, 14, f2, 11, 71, ef, 92, c2, 47, 3f, bf, f6, 3d, 29, 94, 2b, 8a, 80, aa, 20, cf, d2, de, 85, 5e, 2d, aa, 18, 84, 90, 63, b8, b3, dd, f2, 4a, d4, 92, f1, aa, 2a, 1d, 24, ed, 6a, 86, b2, f8, 3c, 29, e, 36, fc, 4f, 31, b, 50, eb, e6, b4, b1, 9, 17, df, 81, df, 54, b8, d5, d7, 27, fc, bc, 93, e, 6c, ce, b2, a7, fe, 28, 18, 2e, 13, ea, a5, 13, e3, 8a, d1, 77, 7d, ef, da, 7e, 1, 4c, f5, a2, f8, 32, 16, fe, 2a, 72, 67, e, 35, d7, b8, 3c, 23, 71, e1, 25, 80, ac, 5e, c6, 5e, ba, fc, d4, 64, 95, 33, 4a, 6f, 3d, c6, 73, 9e, 5c, 74, e4, 9e, af, 38, f5, a6, f3, 95, 6d, 64, 6d, 61, a2, 53, 37, 6, 83, e2, cd, d0, a6, 57, b3, c, b8, d1, 48, b8, 44, 90, 2d, 7f, b6, dc, d, 9f, 6d, 88, 37, 82, 2d, 33, 8a, a8, 9e, 93, f8, c9, 4f, fe, 9, 4e, 3e, e6, 1b, dc, 10, 7b, 45, 8, bf, ce, c5, 8d, 12, 31, a4, c1, 1a, 4d, 8a, 25, 43, 47, 8, 6f, 1f, b2, 1d, 71, 7b, 8d, be, c8, f, 31, 82, 3, 6e, 30, 82, 3, 6a, 2, 1, 1, 30, 5b, 30, 43, 31, 10, 30, e, 6, 3, 55, 4, 3, c, 7, 65, 66, 69, 52, 6f, 6f, 74, 31, b, 30, 9, 6, 3, 55, 4, 6, 13, 2, 43, 4e, 31, 12, 30, 10, 6, 3, 55, 4, b, c, 9, 6f, 70, 65, 6e, 45, 75, 6c, 65, 72, 31, e, 30, c, 6, 3, 55, 4, a, c, 5, 69, 6e, 66, 72, 61, 2, 14, 7d, 6c, cb, ef, ec, b7, 25, 66, 1c, f2, 33, 42, 8b, a1, 95, a4, 3, eb, 5f, c4, 30, d, 6, 9, 60, 86, 48, 1, 65, 3, 4, 2, 1, 5, 0, a0, 81, e5, 30, 19, 6, 9, 2a, 86, 48, 86, f7, d, 1, 9, 3, 31, c, 6, a, 2b, 6, 1, 4, 1, 82, 37, 2, 1, 4, 30, 1c, 6, 9, 2a, 86, 48, 86, f7, d, 1, 9, 5, 31, f, 17, d, 32, 33, 31, 31, 30, 34, 31, 31, 33, 33, 30, 32, 5a, 30, 2f, 6, 9, 2a, 86, 48, 86, f7, d, 1, 9, 4, 31, 22, 4, 20, 72, b6, be, 81, 72, cb, b8, ed, 89, d9, 24, f2, 5b, f5, c1, 4a, 38, 4c, b, c5, d9, e5, 29, 60, 81, 10, 11, 6c, 6f, 7, 5, be, 30, 79, 6, 9, 2a, 86, 48, 86, f7, d, 1, 9, f, 31, 6c, 30, 6a, 30, b, 6, 9, 60, 86, 48, 1, 65, 3, 4, 1, 2a, 30, b, 6, 9, 60, 86, 48, 1, 65, 3, 4, 1, 16, 30, b, 6, 9, 60, 86, 48, 1, 65, 3, 4, 1, 2, 30, a, 6, 8, 2a, 86, 48, 86, f7, d, 3, 7, 30, e, 6, 8, 2a, 86, 48, 86, f7, d, 3, 2, 2, 2, 0, 80, 30, d, 6, 8, 2a, 86, 48, 86, f7, d, 3, 2, 2, 1, 40, 30, 7, 6, 5, 2b, e, 3, 2, 7, 30, d, 6, 8, 2a, 86, 48, 86, f7, d, 3, 2, 2, 1, 28, 30, d, 6, 9, 2a, 86, 48, 86, f7, d, 1, 1, 1, 5, 0, 4, 82, 2, 0, 8a, f6, fe, 23, 36, 1b, 80, d1, 66, da, ce, e1, b5, 1c, fd, 14, c5, 89, fb, 15, 31, c3, b8, c4, f4, 46, ed, ba, 90, 51, 75, a, af, 71, b4, 9d, 68, 92, d7, 46, 5c, f3, 69, 6b, 20, e1, a0, 33, c2, ce, 37, 83, 45, 30, 6c, 6d, 67, 7, a6, d, 8b, 1b, ce, d5, b7, 76, af, 4b, 9b, f4, 74, bd, f7, 50, f4, bf, bf, b, b1, 0, 7b, ed, e5, 26, 8d, 2f, 65, 9a, 3f, f9, b7, 3b, 8a, 64, d0, 51, 45, 24, 5e, fb, b8, a8, f1, 6b, 7b, fb, 49, 8, be, 7b, 9b, 7, 6b, 97, ee, d1, 2a, d6, 75, 47, 3a, e8, c8, 3d, 30, 44, 97, 42, 8f, 51, 59, 5, dc, cd, 68, 13, fc, 18, 9f, 1c, c, de, 1c, e9, 4e, 39, 72, 17, f2, 7f, 11, 7d, a2, 92, f2, f9, 28, e0, e4, 1e, e9, 0, ef, 40, bb, 7f, 9, af, 90, f2, ba, e, 30, e6, db, 31, 39, 59, 6c, f0, b5, 7d, c6, bd, 85, 9b, ab, 65, 47, 9f, 7a, d8, c8, b5, a5, a5, 43, 3f, d, 40, 75, c0, 56, 1f, 19, 3, ef, 8a, 7d, 72, 7b, d5, 8e, 2d, 4e, 96, a0, c3, 29, e5, 58, ec, 8d, 19, e2, 7e, 68, a8, b7, c8, 44, 1d, ba, 4, 7a, 89, b5, 8a, 4b, 7f, 3, f6, 2d, a4, 1b, fd, 57, 9f, da, 13, 47, 6d, bf, d4, 3, 24, 3a, 1f, 4e, 19, fe, e5, 9d, 92, 4, 97, 1b, 2e, 80, 51, a8, 47, a, a3, bd, 2e, 50, 8f, 98, b1, 3b, 74, 84, b7, 7f, d, 99, b3, 70, 5f, fd, c1, d3, 85, d1, e5, ca, bc, d9, 5a, 7d, a1, 43, 52, ce, e5, 7b, 9b, 36, 63, a1, 5c, cf, 57, ff, bd, fc, f6, 85, 85, 6b, 86, 13, ae, f2, f8, dc, 7b, 1d, 4b, a1, 3c, 18, 9, ef, 36, ae, f4, 3a, df, 71, 5a, b9, 5d, e1, 7, d6, 5a, 2f, f3, 12, d1, f1, 25, 34, de, c6, 18, b6, 7e, ee, fc, b0, 82, 68, fa, 39, 63, 13, 57, 1, 4b, 3a, 49, 0, 72, ec, ce, 90, cf, b5, e3, 83, 66, e6, da, 55, 9a, d0, 3b, 82, e8, 3b, 94, 9f, 52, e5, 96, 65, 54, 93, 4, 31, 8f, e0, 31, 9d, c0, 52, e1, 81, 21, 5b, 22, d7, af, 4a, b8, 78, b9, 87, 57, c8, ed, 61, 7c, 58, 7b, 87, aa, a0, d0, 11, 4e, a2, 7b, ad, c4, 8e, 47, 1b, bb, 50, e9, 9a, a7, 42, b1, c7, a6, 43, f9, db, 88, 29, a0, 90, d8, 15, cc, 91, 1d, 17, cd, b6, 55, ed, 78, b, 22, 26, 36, 57, 66, e, b6, 86, 4d, b3, 2c, e0, d4, 3f, 5, 7f, 5f, 25, df, 90, ba, ee, 47, 9c, 48, a4, fe, 3, 50, 47, d5, a, e2, 38, e9, 71, 7a, ba, c4, 95, bb, 32, 4c]
+[2023-11-04T12:44:31Z DEBUG efi_signer] EFI image info:
+[2023-11-04T12:44:31Z DEBUG efi_signer] hashed from [0x00 - 0xd8]
+[2023-11-04T12:44:31Z DEBUG efi_signer] hashed from [0xdc - 0x128]
+[2023-11-04T12:44:31Z DEBUG efi_signer] hashed from [0x130 - 0x400]
+[2023-11-04T12:44:31Z DEBUG efi_signer] hashed from [0x400 - 0x1de00]
+[2023-11-04T12:44:31Z DEBUG efi_signer] hashed from [0x1de00 - 0x7c000]
+[2023-11-04T12:44:31Z DEBUG efi_signer] hashed from [0x7c000 - 0x7c200]
+[2023-11-04T12:44:31Z DEBUG efi_signer] hashed from [0x7c200 - 0x7c400]
+[2023-11-04T12:44:31Z DEBUG efi_signer] hashed from [0x7c400 - 0x7c600]
+[2023-11-04T12:44:31Z DEBUG efi_signer] hashed from [0x7c600 - 0xa9e00]
+[2023-11-04T12:44:31Z DEBUG efi_signer] hashed from [0xa9e00 - 0xaa000]
+[2023-11-04T12:44:31Z DEBUG efi_signer] hashed from [0xaa000 - 0xaa200]
+[2023-11-04T12:44:31Z DEBUG efi_signer] hashed from [0xaa200 - 0xc5a00]
+[2023-11-04T12:44:32Z DEBUG efi_signer] hashed from [0xc5a00 - 0xc5c00]
+[2023-11-04T12:44:32Z DEBUG efi_signer] hashed from [0xc5c00 - 0xe4818]
+[2023-11-04T12:44:32Z DEBUG efi_signer] hashed from [0xe5150 - 0xe5150]
+[2023-11-04T12:44:32Z DEBUG efi_signer] calculated sha256 [af, ba, 82, 33, 9b, a4, b7, 21, 3e, 7b, bf, a9, 75, 25, 12, 80, c0, 3e, 6c, dd, fa, ce, 26, 7c, c5, be, b9, ad, fc, 53, 2d, 3a]
+[2023-11-04T12:44:32Z DEBUG efi_signer] embedded sha256 digest Ok(Some([af, ba, 82, 33, 9b, a4, b7, 21, 3e, 7b, bf, a9, 75, 25, 12, 80, c0, 3e, 6c, dd, fa, ce, 26, 7c, c5, be, b9, ad, fc, 53, 2d, 3a]))
+[2023-11-04T12:44:32Z DEBUG efi_signer] check_sum_compute: range from [0x00 - 0xd8], checksum: 47665
+[2023-11-04T12:44:32Z DEBUG efi_signer] check_sum_compute: range from [0xdc - 0x7283a], checksum: 48372
+[2023-11-04T12:44:32Z DEBUG efi_signer] check_sum_compute: add size and checksum 938320 + 48372 = 986692
+[2023-11-04T12:44:32Z DEBUG efi_signer] checksum 0xf0e44
+[2023-11-04T12:44:32Z DEBUG efi_signer] overlay from [0xc5c00 - 0xe4818] size 0x1ec18
+[2023-11-04T12:44:32Z DEBUG efi_signer] overlay from [0xe5150 - 0xe5150] size 0x0000
+[2023-11-04T12:44:32Z DEBUG efi_signer] section total size: 0x1ec18
+[2023-11-04T12:44:32Z DEBUG efi_signer] the attribute certificate table: [0xe4818 - 0xe5150]
+[2023-11-04T12:44:32Z DEBUG efi_signer] pe the certificate data info: [0xe4818 - 0xe5150]
+[2023-11-04T12:44:32Z DEBUG efi_signer] digest algo: SHA256

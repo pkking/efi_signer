@@ -363,6 +363,7 @@ impl<'a> EfiImage<'a> {
             "a new signature created, size: {:#04x}",
             raw_authenticode_signature.len()
         );
+        debug!("signature data: {:x?}", raw_authenticode_signature);
         let wincert = WinCertificate::from_certificate(
             raw_authenticode_signature,
             CertificateType::WinCertTypePkcsSignedData,
@@ -413,7 +414,9 @@ impl<'a> EfiImage<'a> {
 
                 let cert_data = &raw[begin..sd_end];
                 let wincert = WinCertificate::decode(cert_data).context(WinCertSnafu {})?;
-                let code = AuthenticodeSignature::from_der(wincert.get_certificate())
+                let cert = wincert.get_certificate();
+                debug!("cert data in wincert struct: {:x?}", cert);
+                let code = AuthenticodeSignature::from_der(cert)
                     .context(AuthenticodeSnafu {})?;
                 //authenticode only contains one digest algorithm
                 if code.0.digest_algorithms().len() != 1 {
