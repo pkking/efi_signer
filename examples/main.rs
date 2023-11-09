@@ -66,10 +66,10 @@ struct Parse {
 #[derive(Args)]
 struct Sign {
     #[arg(long, short, required(true))]
-    #[arg(help = "Private key in p7b format")]
+    #[arg(help = "Private key in PEM format")]
     key: String,
     #[arg(long, short, required(true))]
-    #[arg(help = "Certificate in PEM format")]
+    #[arg(help = "Certificate in pkcs7 format")]
     cert: String,
     #[arg(long, short, required(false))]
     #[arg(help = "Whether to generate a detach signature")]
