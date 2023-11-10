@@ -45,7 +45,7 @@ pub(crate) enum InnerError {
     OpenFile { source: IoError, path: String },
     #[snafu(display("Failed to decode pem file {path}"))]
     PemFile { source: PemError, path: String },
-    #[snafu(display("Failed to fetch ctl from Microsoft"))]
+    #[snafu(display("Failed to fetch ctl from Microsoft, {source}"))]
     CtlFetch { source: CtlError },
     #[snafu(display("Missing optional header"))]
     MissingOptHdr {},
@@ -67,36 +67,36 @@ pub(crate) enum InnerError {
     },
     #[snafu(display("Parse EFI image failed, reason: {reason}"))]
     ParseImage { reason: String },
-    #[snafu(display("PEM decode failed"))]
+    #[snafu(display("PEM decode failed, {source}"))]
     PemDecode { source: Utf8Error },
-    #[snafu(display("Parse private key failed"))]
+    #[snafu(display("Parse private key failed, {source}"))]
     ParsePrivateKey { source: KeyError },
-    #[snafu(display("Parse certificate failed"))]
+    #[snafu(display("Parse certificate failed, {source}"))]
     ParseCertificate { source: Pkcs7Error },
     #[snafu(display("Failed to sign the image, reason: {reason}"))]
     Sign { reason: String },
-    #[snafu(display("Failed to create a authenticode"))]
+    #[snafu(display("Failed to create a authenticode: {source}"))]
     Authenticode { source: AuthenticodeError },
-    #[snafu(display("Failed to verify a authenticode"))]
+    #[snafu(display("Failed to verify a authenticode, {source}"))]
     AuthenticodeVerify { source: AuthenticodeError },
-    #[snafu(display("Invalid digest algorithm"))]
+    #[snafu(display("Invalid digest algorithm, {source}"))]
     Algorithm { source: UnsupportedAlgorithmError },
-    #[snafu(display("Failed to read left data in buffer"))]
+    #[snafu(display("Failed to read left data in buffer, {source}"))]
     ReadLeftData { source: IoError },
-    #[snafu(display("Failed to decode/encode to a wincert"))]
+    #[snafu(display("Failed to decode/encode to a wincert, {source}"))]
     WinCert { source: WinCertificateError },
-    #[snafu(display("Failed to decode to a PE/COFF struct"))]
+    #[snafu(display("Failed to decode to a PE/COFF struct, {source}"))]
     PE { source: PeError },
-    #[snafu(display("Failed to compute the digest"))]
+    #[snafu(display("Failed to compute the digest, {reason}"))]
     ComputeDigest { reason: String },
     #[snafu(display("No digest algorithm existed"))]
     NoDigestAlgo {},
     #[snafu(display("Not supported algorithm"))]
     NotSupportedAlgo {},
-    #[snafu(display("Failed to decode a pem cert into Cert struct"))]
+    #[snafu(display("Failed to decode a pem cert into Cert struct, {source}"))]
     CertDecode { source: CertError },
-    #[snafu(display("Failed to decode PEM from utf8 str"))]
+    #[snafu(display("Failed to decode PEM from utf8 str, {source}"))]
     PemDecodeFromUTF8 { source: FromUtf8Error },
-    #[snafu(display("Failed to convert a pem cert to PKCS7 format"))]
+    #[snafu(display("Failed to convert a pem cert to PKCS7 format, {source}"))]
     ConvertPEM2PKCS7 { source: DerError },
 }
