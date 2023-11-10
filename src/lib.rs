@@ -341,12 +341,14 @@ impl<'a> EfiImage<'a> {
         program_name: Option<String>,
         alog: DigestAlgorithm,
     ) -> Result<Signature> {
+        debug!("signing process:");
         let pkey =
             PrivateKey::from_pem_str(str::from_utf8(&private_key).context(PemDecodeSnafu {})?)
                 .context(ParsePrivateKeySnafu {})?;
+        debug!("\tprivate key parsed.");
         let pkcs7 = Pkcs7::from_pem_str(str::from_utf8(&certfile).context(PemDecodeSnafu {})?)
             .context(ParseCertificateSnafu {})?;
-
+        debug!("\tprivate key parsed.");
         let authenticode_signature = AuthenticodeSignature::new(
             &pkcs7,
             file_hash.to_vec(),
@@ -355,7 +357,7 @@ impl<'a> EfiImage<'a> {
             program_name,
         )
         .context(AuthenticodeSnafu {})?;
-
+        debug!("\tauthenticode_signature parsed.");
         let raw_authenticode_signature = authenticode_signature
             .to_der()
             .context(AuthenticodeSnafu {})?;
@@ -367,6 +369,7 @@ impl<'a> EfiImage<'a> {
             raw_authenticode_signature,
             CertificateType::WinCertTypePkcsSignedData,
         );
+        debug!("\twincert generated.");
 
         Ok(Signature(wincert))
     }
