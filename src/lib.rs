@@ -256,6 +256,28 @@ impl<'a> EfiImage<'a> {
             .to_vec())
     }
 
+    pub fn pems_to_p7(bufs: Vec<Vec<u8>>) -> Result<Vec<u8>> {
+        let mut certs: Vec<x509_cert::certificate::CertificateInner> = vec![];
+        for buf in bufs.iter() {
+            certs.push(x509_cert::Certificate::from_pem(buf).context(ConvertPEM2PKCS7Snafu {})?);
+        }
+
+        // this method will result a slight difference p7b cert compared using openssl
+        // see: https://github.com/RustCrypto/formats/issues/1030
+        let p7b_der = ContentInfo::try_from(certs)
+            .context(ConvertPEM2PKCS7Snafu {})?
+            .to_der()
+            .context(ConvertPEM2PKCS7Snafu {})?;
+        let p7 = Pkcs7::from_der(&p7b_der).context(ParseCertificateSnafu {})?;
+        debug!("p7b info: {:#?}", p7);
+        Ok(p7
+            .to_pem()
+            .context(ParseCertificateSnafu {})?
+            .to_string()
+            .as_bytes()
+            .to_vec())
+    }
+
     fn check_sum(mut checksum: u32, data: &[u8], mut steps: usize) -> Result<u32> {
         if steps > 0 {
             let mut rdr = Cursor::new(data);

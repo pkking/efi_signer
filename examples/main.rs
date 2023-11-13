@@ -48,8 +48,9 @@ enum Commands {
 
 #[derive(Args)]
 struct P7b {
-    #[arg(help = "PEM cert to convert")]
-    path: String,
+    #[arg(short, long, action(clap::ArgAction::Append))]
+    #[arg(help = "PEM certs to convert")]
+    cert: Option<Vec<String>>,
     #[arg(help = "PKCS7 output file path")]
     output: String,
 }
@@ -80,14 +81,15 @@ struct Sign {
     output: String,
 }
 
-fn p7b(path: &str, output: &str) {
-    let pem_file_content = read(path).unwrap();
-    let pem_str = str::from_utf8(&pem_file_content).unwrap();
-    debug!("read cert: {}", pem_str);
+fn p7b(paths: Vec<String>, output: &str) {
+    let mut bufs: Vec<Vec<u8>> = vec![];
+    for path in paths.iter() {
+        let pem_file_content = read(path).unwrap();
 
-    let p7 = efi_signer::EfiImage::pem_to_p7(&pem_file_content).unwrap();
-    //debug!("pkcs7 info: {:?}", p7_pem);
-    //debug!("openssl p7topem {:?}", p7.to_pem().unwrap());
+        debug!("read cert: {}", path);
+        bufs.push(pem_file_content);
+    }
+    let p7 = efi_signer::EfiImage::pems_to_p7(bufs).unwrap();
 
     let mut file = std::fs::File::create(output).unwrap();
     file.write_all(&p7).unwrap();
@@ -163,6 +165,6 @@ fn main() {
     match app.command {
         Commands::Parse(p) => parse(&p.path, p.certs),
         Commands::Sign(s) => sign(&s.path, &s.output, &s.key, &s.cert, s.detach),
-        Commands::P7b(p) => p7b(&p.path, &p.output),
+        Commands::P7b(p) => p7b(p.cert.unwrap(), &p.output),
     }
 }
