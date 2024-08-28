@@ -1,7 +1,7 @@
 #!/bin/bash -e
 
 # a example to describe how to generate a code sign certificate
-# please note: the picky hardcode the sign algo to ras_with_sha, so we can only generate rsa key/cert
+# please note: the picky hardcodes the sign algo to rsa_with_sha, so we can only generate rsa key/cert
 # output:
 #  privatekey: key.pem
 #  certificate: certificate.p7b
