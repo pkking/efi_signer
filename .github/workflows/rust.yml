@@ -11,7 +11,7 @@ env:
 
 jobs:
   combo:
-    runs-on: ubuntu-latest
+    runs-on: arc-runner-set
     steps:
     - uses: actions/checkout@v4
     - uses: actions-rs/toolchain@v1
@@ -46,7 +46,7 @@ jobs:
 
   lints:
     name: Clippy + rustfmt
-    runs-on: ubuntu-latest
+    runs-on: arc-runner-set
     steps:
       - name: Checkout sources
         uses: actions/checkout@v4
