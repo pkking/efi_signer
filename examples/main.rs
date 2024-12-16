@@ -158,7 +158,9 @@ fn main() {
     let app = Cli::parse();
     if app.verbose {
         println!("debug enabled");
-        env::set_var("RUST_LOG", "debug");
+        unsafe {
+            env::set_var("RUST_LOG", "debug");
+        }
     }
     env_logger::init();
 

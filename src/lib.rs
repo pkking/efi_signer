@@ -13,9 +13,7 @@
  *  * // See the Mulan PSL v2 for more details.
  *
  */
-#![feature(cursor_remaining, buf_read_has_data_left)]
-#![feature(error_generic_member_access)]
-#![feature(provide_any)]
+#![feature(buf_read_has_data_left)]
 use crate::error::{
     AlgorithmSnafu, AuthenticodeSnafu, CertDecodeSnafu, ConvertPEM2PKCS7Snafu,
     InvalidMagicInOptHdrSnafu, MissingOptHdrSnafu, NoDigestAlgoSnafu, OpenFileSnafu, PESnafu,
@@ -581,8 +579,8 @@ impl<'a> EfiImage<'a> {
     /// 12.    Add the section’s SizeOfRawData value to SUM_OF_BYTES_HASHED.
     /// 13.    Repeat steps 11 and 12 for all of the sections in the sorted table.
     /// 14.    Create a value called FILE_SIZE, which is not part of the signature. Set this value to the image’s file size, acquired from the underlying file system. If FILE_SIZE is greater than SUM_OF_BYTES_HASHED, the file contains extra data that must be added to the hash. This data begins at the SUM_OF_BYTES_HASHED file offset, and its length is:
-    /// (File Size) – ((Size of AttributeCertificateTable) + SUM_OF_BYTES_HASHED)
-    /// Note: The size of Attribute Certificate Table is specified in the second ULONG value in the Certificate Table entry (32 bit: offset 132, 64 bit: offset 148) in Optional Header Data Directories.
+    ///        (File Size) – ((Size of AttributeCertificateTable) + SUM_OF_BYTES_HASHED)
+    ///        Note: The size of Attribute Certificate Table is specified in the second ULONG value in the Certificate Table entry (32 bit: offset 132, 64 bit: offset 148) in Optional Header Data Directories.
     /// 15.    Finalize the hash algorithm context.
     #[allow(clippy::box_default)]
     pub fn compute_digest(&self, alg: DigestAlgorithm) -> Result<Vec<u8>> {

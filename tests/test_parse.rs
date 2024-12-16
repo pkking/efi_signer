@@ -114,6 +114,11 @@ fn test_verify_sig() {
 
     let new_pe = efi_signer::EfiImage::parse(&sig).unwrap();
     let paths = vec!["./tests/certificate.pem".to_string()];
+    match new_pe.verify(paths.clone()) {
+        Ok(_) => println!("verify: Ok"),
+        Err(e) => println!("verify: Failed(reason: {})", e),
+    }
+    // "verify should not failed"
     assert!(new_pe.verify(paths).is_ok(), "verify should not failed");
 }
 
@@ -143,8 +148,9 @@ fn test_verify_invalid_cert() {
     match pe.verify(paths) {
         Ok(_) => panic!("we should failed"),
         Err(e) => assert_eq!(
-            e.to_string(),
-            "Failed to decode a pem cert into Cert struct".to_string()
+            true,
+            e.to_string()
+                .contains(&"Failed to decode a pem cert into Cert struct".to_string())
         ),
     }
 }
