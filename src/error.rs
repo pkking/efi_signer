@@ -36,6 +36,7 @@ pub struct Error(InnerError);
 #[derive(Debug, Snafu)]
 #[snafu(visibility(pub(crate)))]
 #[non_exhaustive]
+#[allow(dead_code)]
 pub(crate) enum InnerError {
     #[snafu(display("Decode failed"))]
     DecodeFromDer {},
