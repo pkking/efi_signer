@@ -85,6 +85,7 @@ fn test_get_cert_table_non() {
 }
 
 #[test]
+#[ignore = "reason: we should wait upstream fix the issue: https://github.com/Devolutions/picky-rs/issues/257"]
 fn test_verify_non_sig() {
     init();
     let efi_buf = include_bytes!("./shimx64.efi");
@@ -98,6 +99,7 @@ fn test_verify_non_sig() {
 }
 
 #[test]
+#[ignore = "reason: we should wait upstream fix the issue: https://github.com/Devolutions/picky-rs/issues/257"]
 fn test_verify_sig() {
     init();
     let buf = include_bytes!("./shimx64.efi");
@@ -114,11 +116,6 @@ fn test_verify_sig() {
 
     let new_pe = efi_signer::EfiImage::parse(&sig).unwrap();
     let paths = vec!["./tests/certificate.pem".to_string()];
-    match new_pe.verify(paths.clone()) {
-        Ok(_) => println!("verify: Ok"),
-        Err(e) => println!("verify: Failed(reason: {})", e),
-    }
-    // "verify should not failed"
     assert!(new_pe.verify(paths).is_ok(), "verify should not failed");
 }
 
@@ -156,6 +153,7 @@ fn test_verify_invalid_cert() {
 }
 
 #[test]
+#[ignore = "reason: we should wait upstream fix the issue: https://github.com/Devolutions/picky-rs/issues/257"]
 fn test_verify_wrong_cert() {
     init();
     let buf = include_bytes!("./shimx64.efi");
