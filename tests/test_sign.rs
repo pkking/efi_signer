@@ -84,3 +84,73 @@ fn test_sign_append() {
         new_pe.compute_check_sum().unwrap()
     )
 }
+
+#[test]
+fn test_do_sign_signature_invalid_cert_pem() {
+    init();
+    let file_hash = vec![0x01, 0x02, 0x03, 0x04];
+    let invalid_cert_pem = b"-----BEGIN CERTIFICATE-----\nINVALID_CONTENT\n-----END CERTIFICATE-----".to_vec();
+    let private_key = include_bytes!("./key.pem").to_vec();
+    let program_name = None;
+    let alog = efi_signer::DigestAlgorithm::Sha256;
+
+    let result = efi_signer::EfiImage::do_sign_signature(
+        file_hash,
+        invalid_cert_pem,
+        private_key,
+        program_name,
+        alog,
+    );
+    assert!(result.is_err());
+    assert_eq!(
+        result.unwrap_err().to_string(),
+        "Parse certificate failed, invalid PEM provided: couldn't decode base64: Invalid symbol 95, offset 7."
+    );
+}
+
+#[test]
+fn test_do_sign_signature_invalid_private_key_pem() {
+    init();
+    let file_hash = vec![0x01, 0x02, 0x03, 0x04];
+    let cert_pem = include_bytes!("./certificate.p7b").to_vec();
+    let invalid_private_key = b"-----BEGIN PRIVATE KEY-----\nINVALID_CONTENT\n-----END PRIVATE KEY-----".to_vec();
+    let program_name = None;
+    let alog = efi_signer::DigestAlgorithm::Sha256;
+
+    let result = efi_signer::EfiImage::do_sign_signature(
+        file_hash,
+        cert_pem,
+        invalid_private_key,
+        program_name,
+        alog,
+    );
+    assert!(result.is_err());
+    assert_eq!(
+        result.unwrap_err().to_string(),
+        "Parse private key failed, invalid PEM provided: couldn't decode base64: Invalid symbol 95, offset 7."
+    );
+}
+
+#[test]
+fn test_do_sign_signature_unsupported_digest_algo() {
+    init();
+    let file_hash = vec![0x01, 0x02, 0x03, 0x04];
+    let cert_pem = include_bytes!("./certificate.p7b").to_vec();
+    let private_key = include_bytes!("./key.pem").to_vec();
+    let program_name = None;
+    // Assuming MD5 is not supported for signing in AuthenticodeSignature
+    let alog = efi_signer::DigestAlgorithm::MD5;
+
+    let result = efi_signer::EfiImage::do_sign_signature(
+        file_hash,
+        cert_pem,
+        private_key,
+        program_name,
+        alog,
+    );
+    assert!(result.is_err());
+    assert_eq!(
+        result.unwrap_err().to_string(),
+        "Failed to create a authenticode: unsupported algorithm:  MD5"
+    );
+}
