@@ -41,7 +41,8 @@ fn test_pem_to_p7_invalid_pem() {
 #[test]
 fn test_pems_to_p7_invalid_pem() {
     init();
-    let invalid_pem = vec![b"-----BEGIN CERTIFICATE-----\nINVALID_CONTENT\n-----END CERTIFICATE-----".to_vec()];
+    let invalid_pem =
+        vec![b"-----BEGIN CERTIFICATE-----\nINVALID_CONTENT\n-----END CERTIFICATE-----".to_vec()];
     let result = efi_signer::EfiImage::pems_to_p7(invalid_pem);
     assert!(result.is_err());
     assert_eq!(

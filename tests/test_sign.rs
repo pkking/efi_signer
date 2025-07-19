@@ -89,7 +89,8 @@ fn test_sign_append() {
 fn test_do_sign_signature_invalid_cert_pem() {
     init();
     let file_hash = vec![0x01, 0x02, 0x03, 0x04];
-    let invalid_cert_pem = b"-----BEGIN CERTIFICATE-----\nINVALID_CONTENT\n-----END CERTIFICATE-----".to_vec();
+    let invalid_cert_pem =
+        b"-----BEGIN CERTIFICATE-----\nINVALID_CONTENT\n-----END CERTIFICATE-----".to_vec();
     let private_key = include_bytes!("./key.pem").to_vec();
     let program_name = None;
     let alog = efi_signer::DigestAlgorithm::Sha256;
@@ -113,7 +114,8 @@ fn test_do_sign_signature_invalid_private_key_pem() {
     init();
     let file_hash = vec![0x01, 0x02, 0x03, 0x04];
     let cert_pem = include_bytes!("./certificate.p7b").to_vec();
-    let invalid_private_key = b"-----BEGIN PRIVATE KEY-----\nINVALID_CONTENT\n-----END PRIVATE KEY-----".to_vec();
+    let invalid_private_key =
+        b"-----BEGIN PRIVATE KEY-----\nINVALID_CONTENT\n-----END PRIVATE KEY-----".to_vec();
     let program_name = None;
     let alog = efi_signer::DigestAlgorithm::Sha256;
 

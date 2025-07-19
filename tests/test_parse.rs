@@ -121,7 +121,15 @@ fn test_verify_sig() {
         Err(e) => println!("verify: Failed(reason: {})", e),
     }
     // "verify should not failed"
-    assert!(new_pe.verify(paths.clone()).is_ok() || new_pe.verify(paths).unwrap_err().to_string().contains("Failed to fetch ctl from Microsoft"), "verify should not failed");
+    assert!(
+        new_pe.verify(paths.clone()).is_ok()
+            || new_pe
+                .verify(paths)
+                .unwrap_err()
+                .to_string()
+                .contains("Failed to fetch ctl from Microsoft"),
+        "verify should not failed"
+    );
 }
 
 #[test]
@@ -196,4 +204,3 @@ fn test_get_digest_none() {
     let pe = efi_signer::EfiImage::parse(efi_buf).unwrap();
     assert!(pe.get_digest().unwrap().is_none());
 }
-
