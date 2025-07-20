@@ -157,10 +157,9 @@ fn test_verify_invalid_cert() {
     let paths = vec!["./tests/key.pem".to_string()];
     match pe.verify(paths) {
         Ok(_) => panic!("we should failed"),
-        Err(e) => assert!(
-            e.to_string()
-                .contains(&"Failed to decode a pem cert into Cert struct".to_string())
-        ),
+        Err(e) => assert!(e
+            .to_string()
+            .contains(&"Failed to decode a pem cert into Cert struct".to_string())),
     }
 }
 
