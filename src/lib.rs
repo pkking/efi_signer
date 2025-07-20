@@ -267,7 +267,7 @@ impl<'a> EfiImage<'a> {
             .to_der()
             .context(ConvertPEM2PKCS7Snafu {})?;
         let p7 = Pkcs7::from_der(&p7b_der).context(ParseCertificateSnafu {})?;
-        debug!("p7b info: {:#?}", p7);
+        debug!("p7b info: {p7:#?}");
         Ok(p7
             .to_pem()
             .context(ParseCertificateSnafu {})?
@@ -368,9 +368,9 @@ impl<'a> EfiImage<'a> {
         debug!("\tprivate key parsed.");
         let pkcs7 = Pkcs7::from_pem_str(str::from_utf8(&certfile).context(PemDecodeSnafu {})?)
             .context(ParseCertificateSnafu {})?;
-        debug!("\tp7b cert parsed, {:#?}", pkcs7);
+        debug!("\tp7b cert parsed, {pkcs7:#?}");
         for cert in pkcs7.decode_certificates().iter() {
-            debug!("inner cert {:#?}", cert);
+            debug!("inner cert {cert:#?}");
         }
 
         let authenticode_signature = AuthenticodeSignature::new(
@@ -468,7 +468,7 @@ impl<'a> EfiImage<'a> {
                 }
                 res.push(Signature(wincert));
                 //each wincert should aligned to a byte
-                if sd_end % 8 != 0 {
+                if !sd_end.is_multiple_of(8) {
                     sd_end = (sd_end / 8 + 1) * 8;
                 }
                 rdr.set_position(sd_end as u64);
@@ -490,10 +490,7 @@ impl<'a> EfiImage<'a> {
         })?;
         if signature != PE_MAGIC {
             ParseImageSnafu {
-                reason: format!(
-                    "pe magic check failed expect:{} actual:{}",
-                    PE_MAGIC, signature
-                ),
+                reason: format!("pe magic check failed expect:{PE_MAGIC} actual:{signature}"),
             }
             .fail()?
         }
@@ -508,9 +505,9 @@ impl<'a> EfiImage<'a> {
         let mut raw = buf.to_vec();
         // add some padding to end of the file so that the file size is byte aligned
         let mut padding = 0;
-        if raw.len() % 8 != 0 {
+        if !raw.len().is_multiple_of(8) {
             padding = (raw.len() / 8 + 1) * 8 - raw.len();
-            debug!("zero-pad {} bytes", padding);
+            debug!("zero-pad {padding} bytes");
             raw.append(&mut vec![0u8; padding]);
         }
         Ok(EfiImage {
@@ -601,7 +598,7 @@ impl<'a> EfiImage<'a> {
         let mut begin = 0;
         let mut offset = EfiImage::get_check_sum_offset(&self.pe);
         let before_checksum = &self.raw[begin..offset];
-        debug!("hashed from [{:#04x} - {:#04x}]", begin, offset);
+        debug!("hashed from [{begin:#04x} - {offset:#04x}]");
         hasher.update(before_checksum);
 
         // 4. skip over checksum field
@@ -618,7 +615,7 @@ impl<'a> EfiImage<'a> {
         begin = begin + offset + SIZEOF_CERT_TABLE;
         offset = hdr.windows_fields.size_of_headers as usize;
         let after_cert_table_dd = &self.raw[begin..offset];
-        debug!("hashed from [{:#04x} - {:#04x}]", begin, offset);
+        debug!("hashed from [{begin:#04x} - {offset:#04x}]");
         hasher.update(after_cert_table_dd);
 
         // 8. create a counter
@@ -673,10 +670,7 @@ impl<'a> EfiImage<'a> {
                 );
                 hasher.update(&self.raw[(dd.virtual_address + dd.size) as usize..]);
             } else {
-                debug!(
-                    "hashed from [{:#04x} - {:#04x}]",
-                    sum_of_bytes_hashed, file_size
-                );
+                debug!("hashed from [{sum_of_bytes_hashed:#04x} - {file_size:#04x}]");
                 hasher.update(&self.raw[sum_of_bytes_hashed as usize..]);
             }
         }
@@ -733,13 +727,12 @@ impl<'a> EfiImage<'a> {
             checksum_after_size,
         )?;
         debug!(
-            "check_sum_compute: range from [{:#04x} - {:#04x}], checksum: {}",
-            checksum_after_offset, checksum_after_size, checksum
+            "check_sum_compute: range from [{checksum_after_offset:#04x} - {checksum_after_size:#04x}], checksum: {checksum}"
         );
 
         if (file_size & 1) > 0 {
             checksum += self.raw[file_size - 1] as u32;
-            debug!("check_sum_compute: append last byte, checksum {}", checksum)
+            debug!("check_sum_compute: append last byte, checksum {checksum}")
         }
 
         debug!(
@@ -757,7 +750,7 @@ impl<'a> EfiImage<'a> {
         let temp_pe = EfiImage::parse(&temp_buf)?;
         let new_checksum = temp_pe.compute_check_sum()?;
 
-        debug!("new checksum for new pe image: {}", new_checksum);
+        debug!("new checksum for new pe image: {new_checksum}");
 
         let mut writer = Cursor::new(res);
 
@@ -786,20 +779,17 @@ impl<'a> EfiImage<'a> {
             let mut end_of_signature: u32 = dd.virtual_address + dd.size;
             rva = dd.virtual_address;
             size = dd.size;
-            debug!(
-                "already has some signatures, old rva and size: {:#04x}/{:#04x}",
-                rva, size
-            );
+            debug!("already has some signatures, old rva and size: {rva:#04x}/{size:#04x}");
             res = self.raw[..end_of_signature as usize].to_vec();
             //each wincert should aligned to a byte
             // if not, try to append some padding
-            if end_of_signature % 8 != 0 {
+            if !end_of_signature.is_multiple_of(8) {
                 end_of_signature = (end_of_signature / 8 + 1) * 8;
             }
             let mut padding = end_of_signature - (dd.virtual_address + dd.size);
             size += padding;
             if padding > 0 {
-                debug!("need padding {:#04x} bytes when sign a new sig", padding);
+                debug!("need padding {padding:#04x} bytes when sign a new sig");
             }
             res.append(&mut vec![0u8; padding as usize]);
             // append all other signatures
@@ -811,10 +801,10 @@ impl<'a> EfiImage<'a> {
                 res.append(&mut code_raw);
                 // append some padding
                 end_of_signature = res.len() as u32;
-                if end_of_signature % 8 != 0 {
+                if !end_of_signature.is_multiple_of(8) {
                     end_of_signature = (end_of_signature / 8 + 1) * 8;
                     padding = end_of_signature - res.len() as u32;
-                    debug!("append new signature need padding {} bytes", padding);
+                    debug!("append new signature need padding {padding} bytes");
                     res.append(&mut vec![0u8; padding as usize]);
                     size += padding;
                 }
@@ -845,14 +835,14 @@ impl<'a> EfiImage<'a> {
                 size += tmp.len() as u32;
                 res.append(&mut tmp);
                 // append some padding
-                if tmp.len() % 8 != 0 {
+                if !tmp.len().is_multiple_of(8) {
                     padding = (tmp.len() / 8 + 1) * 8 - tmp.len();
                 }
                 size += padding as u32;
                 res.append(&mut vec![0u8; padding]);
             }
         }
-        debug!("new rva and size: {:#04x}/{:#04x}", rva, size);
+        debug!("new rva and size: {rva:#04x}/{size:#04x}");
         self.update_cert_directory(rva, size, &mut res)?;
         EfiImage::update_check_sum(&mut res)?;
 
@@ -953,7 +943,7 @@ impl<'a> EfiImage<'a> {
                 );
                 tot_size += s.data.len();
             }
-            debug!("section total size: {:#04x}", tot_size);
+            debug!("section total size: {tot_size:#04x}");
         }
         if let Some(ref c) = self.cert_table {
             debug!(
@@ -977,7 +967,7 @@ impl<'a> EfiImage<'a> {
         }
 
         if let Some(algo) = self.get_digest_algo()? {
-            debug!("digest algo: {}", algo);
+            debug!("digest algo: {algo}");
         }
         Ok(())
     }

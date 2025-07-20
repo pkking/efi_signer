@@ -118,7 +118,7 @@ fn test_verify_sig() {
     let paths = vec!["./tests/certificate.pem".to_string()];
     match new_pe.verify(paths.clone()) {
         Ok(_) => println!("verify: Ok"),
-        Err(e) => println!("verify: Failed(reason: {})", e),
+        Err(e) => println!("verify: Failed(reason: {e})"),
     }
     // "verify should not failed"
     assert!(

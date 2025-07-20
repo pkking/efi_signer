@@ -86,7 +86,7 @@ fn p7b(paths: Vec<String>, output: &str) {
     for path in paths.iter() {
         let pem_file_content = read(path).unwrap();
 
-        debug!("read cert: {}", path);
+        debug!("read cert: {path}");
         bufs.push(pem_file_content);
     }
     let p7 = efi_signer::EfiImage::pems_to_p7(bufs).unwrap();
@@ -147,7 +147,7 @@ fn parse(path: &str, certs: Option<Vec<String>>) {
     if let Some(paths) = certs {
         match pe.verify(paths) {
             Ok(_) => println!("verify: Ok"),
-            Err(e) => println!("verify: Failed(reason: {})", e),
+            Err(e) => println!("verify: Failed(reason: {e})"),
         }
     }
     pe.print_info().unwrap();
