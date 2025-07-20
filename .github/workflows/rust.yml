@@ -1,4 +1,4 @@
-name: Rust
+name: CI
 
 on:
   push:
@@ -12,7 +12,7 @@ env:
 
 jobs:
   lints:
-    name: Clippy + rustfmt
+    name: lint and tests
     runs-on: ubuntu-latest
     steps:
       - name: Checkout sources
@@ -22,24 +22,13 @@ jobs:
         # Ensure rustfmt is installed and setup problem matcher
         uses: actions-rust-lang/setup-rust-toolchain@v1
         with:
-          components: rustfmt,clippy
+          components: rustfmt,clippy,cargo-tarpaulin
+          toolchain: nightly
 
       - name: Rustfmt Check
         uses: actions-rust-lang/rustfmt@v1
       - name: Run Clippy
         run: cargo clippy --all-targets --all-features
-  coverage:
-    needs: [lints]
-    name: Code Coverage
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout sources
-        uses: actions/checkout@v4
-
-      - name: Install Rust toolchain
-        uses: actions-rust-lang/setup-rust-toolchain@v1
-        with:
-          components: tarpaulin
 
       - name: Generate code coverage
         run: cargo tarpaulin --verbose --engine llvm --ignore-tests --out Lcov --output-dir target/lcov
