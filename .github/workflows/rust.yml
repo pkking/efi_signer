@@ -1,46 +1,40 @@
-name: Rust
+name: CI
 
 on:
   push:
-    branches: [ "main", "master" ]
+    branches: ["main", "master"]
   pull_request:
-    branches: [ "master", "master" ]
+    branches: ["master", "master"]
   workflow_dispatch:
 env:
   CARGO_TERM_COLOR: always
+  RUSTFLAGS: "-Dwarnings"
 
 jobs:
-  test:
-    name: cargo test
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions-rust-lang/setup-rust-toolchain@v1
-      - run: cargo test --all-features
-
   lints:
-    name: Clippy + rustfmt
+    name: lint and tests
     runs-on: ubuntu-latest
     steps:
       - name: Checkout sources
         uses: actions/checkout@v4
 
       - name: Install nightly toolchain
-        uses: actions-rs/toolchain@v1
+        # Ensure rustfmt is installed and setup problem matcher
+        uses: actions-rust-lang/setup-rust-toolchain@v1
         with:
-          profile: minimal
+          components: rustfmt,clippy
           toolchain: nightly
-          override: true
-          components: rustfmt, clippy
+      - run: cargo install cargo-tarpaulin
 
-      - name: Run cargo fmt
-        uses: actions-rs/cargo@v1
-        with:
-          command: fmt
-          args: --all -- --check
+      - name: Rustfmt Check
+        uses: actions-rust-lang/rustfmt@v1
+      - name: Run Clippy
+        run: cargo clippy --all-targets --all-features
 
-      - name: Run cargo clippy
-        uses: actions-rs/cargo@v1
+      - name: Generate code coverage
+        run: cargo tarpaulin --verbose --engine llvm --ignore-tests --out Lcov --output-dir target/lcov
+
+      - name: Upload to Coveralls
+        uses: coverallsapp/github-action@v2
         with:
-          command: clippy
-          args: -- -D warnings
+          path-to-lcov: target/lcov/lcov.info

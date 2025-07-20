@@ -25,3 +25,28 @@ fn test_sign() {
     //assert_eq!(ip7.encapsulated_content_info(), origin_ip7.encapsulated_content_info());
     //assert_eq!(ip7.to_der().unwrap(), origin_ip7.to_der().unwrap());
 }
+
+#[test]
+fn test_pem_to_p7_invalid_pem() {
+    init();
+    let invalid_pem = b"-----BEGIN CERTIFICATE-----\nINVALID_CONTENT\n-----END CERTIFICATE-----";
+    let result = efi_signer::EfiImage::pem_to_p7(invalid_pem);
+    assert!(result.is_err());
+    assert_eq!(
+        result.unwrap_err().to_string(),
+        "Failed to convert a pem cert to PKCS7 format, PEM error: PEM Base64 error: invalid Base64 encoding"
+    );
+}
+
+#[test]
+fn test_pems_to_p7_invalid_pem() {
+    init();
+    let invalid_pem =
+        vec![b"-----BEGIN CERTIFICATE-----\nINVALID_CONTENT\n-----END CERTIFICATE-----".to_vec()];
+    let result = efi_signer::EfiImage::pems_to_p7(invalid_pem);
+    assert!(result.is_err());
+    assert_eq!(
+        result.unwrap_err().to_string(),
+        "Failed to convert a pem cert to PKCS7 format, PEM error: PEM Base64 error: invalid Base64 encoding"
+    );
+}
