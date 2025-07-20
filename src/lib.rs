@@ -703,7 +703,7 @@ impl<'a> EfiImage<'a> {
         Ok(())
     }
 
-    pub fn get_pe_ref(&self) -> &PE {
+    pub fn get_pe_ref(&self) -> &PE<'_> {
         &self.pe
     }
     /// reference: https://www.cnblogs.com/concurrency/p/3926698.html
